@@ -13,10 +13,60 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="mhttp">
+      <UniqueIdentifier>{b1757049-b2a8-4391-932d-41a04ac1e6fa}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="minimalhttp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="mhttp\common.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\platform.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\tcp.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\test.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\udp.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\ssl.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\connection.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\protocols.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\tcpserver.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\connections.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\HttpClient.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\listener.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\reader.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\writer.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".gitignore" />
   </ItemGroup>
 </Project>

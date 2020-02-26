@@ -1,20 +1,59 @@
-// minimalhttp.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
+/* Copyright (C) 2020 D8DATAWORKS - All Rights Reserved */
 
-#include <iostream>
+#ifdef TEST_RUNNER
 
-int main()
+
+#define CATCH_CONFIG_RUNNER
+#include "catch.hpp"
+#include "mhttp/test.hpp"
+
+int main(int argc, char* argv[])
 {
-    std::cout << "Hello World!\n";
+    return Catch::Session().run(argc, argv);
 }
 
-// Run program: Ctrl + F5 or Debug > Start Without Debugging menu
-// Debug program: F5 or Debug > Start Debugging menu
 
-// Tips for Getting Started: 
-//   1. Use the Solution Explorer window to add/manage files
-//   2. Use the Team Explorer window to connect to source control
-//   3. Use the Output window to see build output and other messages
-//   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
+#endif //TEST_RUNNER
+
+
+
+#if ! defined(TEST_RUNNER)
+
+#include <iostream>
+#include <string>
+#include "clipp.h"
+
+using namespace std;
+using namespace clipp;
+
+int main(int argc, char* argv[])
+{
+    bool mount = false, dismount = false, step = false, validate = false;
+    string path = "test";
+    int size = 1;
+
+    auto cli = (
+        opt_value("test directory", path),
+        opt_value("size", size),
+        option("-m", "--mount").set(mount).doc("Mount the test volume ( path )"),
+        option("-s", "--step").set(step).doc("Mutate the test data"),
+        option("-v", "--validate").set(validate).doc("Validate test metadata against path ( path )"),
+        option("-d", "--dismount").set(dismount).doc("Dismount the test data")
+        );
+
+    try
+    {
+    }
+    catch (const exception & ex)
+    {
+        cerr << ex.what() << endl;
+        return -1;
+    }
+
+    return 0;
+}
+
+
+#endif //! defined(BENCHMARK_RUNNER) && ! defined(TEST_RUNNER)
+
+
