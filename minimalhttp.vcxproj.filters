@@ -53,9 +53,6 @@
     <ClInclude Include="mhttp\connections.hpp">
       <Filter>mhttp</Filter>
     </ClInclude>
-    <ClInclude Include="mhttp\HttpClient.hpp">
-      <Filter>mhttp</Filter>
-    </ClInclude>
     <ClInclude Include="mhttp\listener.hpp">
       <Filter>mhttp</Filter>
     </ClInclude>
@@ -63,6 +60,12 @@
       <Filter>mhttp</Filter>
     </ClInclude>
     <ClInclude Include="mhttp\writer.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\http.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
+    <ClInclude Include="mhttp\async.hpp">
       <Filter>mhttp</Filter>
     </ClInclude>
   </ItemGroup>

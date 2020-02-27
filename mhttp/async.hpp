@@ -6,6 +6,7 @@
 #include <list>
 #include <queue>
 #include <chrono>
+#include <condition_variable>
 
 namespace mhttp
 {
@@ -37,6 +38,11 @@ namespace mhttp
 			threads.clear();
 		}
 
+		void Join()
+		{
+			Wait();
+		}
+
 		template <typename F> void Join(F f)
 		{	
 			bool active = true;
@@ -65,11 +71,11 @@ namespace mhttp
 	public:
 		ThreadQueue(){}
 
-		void Push(T e) 
+		void Push(T && e) 
 		{
 			std::unique_lock<std::mutex> lck(mtx);
 
-			q.push(e);
+			q.push(std::move(e));
 			cv.notify_one();
 		}
 
@@ -79,7 +85,7 @@ namespace mhttp
 
 			if(!q.empty()) 
 			{
-				e = q.front();
+				e = std::move(q.front());
 				q.pop();
 				return true;
 			}
@@ -87,23 +93,20 @@ namespace mhttp
 			return false;
 		}
 
-		T Next(bool * lifetime = nullptr) 
+		bool Next(bool & run, T & r) 
 		{
 			std::unique_lock<std::mutex> lck(mtx);
-			while(true)
+			while(run)
 			{
-				if(lifetime) cv.wait(lck, [&]{return !q.empty() && *lifetime;});
-				else cv.wait(lck, [&]{return !q.empty();});
-
-				if(!q.empty()) 
+				if ( cv.wait_for( lck, std::chrono::milliseconds(1000), [&] {return !q.empty(); } ) )
 				{
-					T r = q.front();
+					r = std::move(q.front());
 					q.pop();
-					return r;
+					return true;
 				}
 			}
 
-			return T();
+			return false;
 		}
 	private:
 		std::queue<T> q;
@@ -123,20 +126,24 @@ namespace mhttp
 			: handler(h)
 			, threads(_threads) {}
 
-		EventHandler(uint32_t c, t_handler h, ThreadHub & _threads= Threads()) 
+		EventHandler(size_t c, t_handler h, ThreadHub & _threads= Threads()) 
 			: handler(h)
 			, threads(_threads) 
 		{
 			Start(c);
 		}
 
-		void Start(uint32_t c)
+		void Start(size_t c)
 		{
-			for(uint32_t i = 0; i< c; i++) 
+			for(size_t i = 0; i< c; i++)
 				threads.Async( [&](bool&run) 
 				{ 
 					while(run) 
-						handler( ThreadQueue<T>::Next(&run) ); 
+					{
+						T evt;
+						if(ThreadQueue<T>::Next(run, evt))
+							handler(std::move(evt));
+					}
 				});
 		}
 	};

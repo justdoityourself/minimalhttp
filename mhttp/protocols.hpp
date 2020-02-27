@@ -9,12 +9,15 @@
 #include <utility>
 #include <map>
 #include <string_view>
+#include <memory>
 
 #include "../gsl-lite.hpp"
+#include "d8u/buffer.hpp"
 
 namespace mhttp
 {
 	using namespace std;
+	using namespace d8u::buffer;
 
 	class Common
 	{
@@ -22,7 +25,7 @@ namespace mhttp
 
 		template < typename C, typename T > static bool Initialize(C& c, T type) { return true; } //Protocol based on connect details.
 
-		template < typename C, typename M > static bool Write(C & c, M m,bool & idle)
+		template < typename C, typename M > static bool WriteMessage(C & c, M m,bool & idle)
 		{
 			while(true)
 			{
@@ -45,12 +48,48 @@ namespace mhttp
 					m(c, c.write_count++);
 
 					c.write_buffer = std::vector<uint8_t>();
+					c.write_offset = 0;
 				}
 				
-				if(!c.Try(c.write_buffer))
+				if(!c.TryWrite(c.write_buffer))
 					break;
 
-				c.write_offset = 0;
+				uint32_t size = (uint32_t)c.write_buffer.size();
+				if (sizeof(uint32_t) != c.Send(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))))
+					return false;
+			}
+
+			return true;
+		}
+
+		template < typename C, typename M > static bool WriteRaw(C& c, M m, bool& idle)
+		{
+			while (true)
+			{
+				if (c.write_buffer.size())
+				{
+					auto r = c.Send(gsl::span<uint8_t>(c.write_buffer.data() + c.write_offset, c.write_buffer.size() - c.write_offset));
+
+					if (!r) break;
+
+					if (r == -1)
+						return false;
+
+					idle = false;
+
+					c.write_offset += r;
+					if (c.write_offset != c.write_buffer.size())
+						return true;
+
+					c.write_bytes += c.write_buffer.size();
+					m(c, c.write_count++);
+
+					c.write_buffer = std::vector<uint8_t>();
+					c.write_offset = 0;
+				}
+
+				if (!c.TryWrite(c.write_buffer))
+					break;
 			}
 
 			return true;
@@ -61,54 +100,99 @@ namespace mhttp
 	{
 	public:
 
-		/*static std::tuple<Memory,Memory,Memory,Memory,std::map<Memory,Memory> > Request(Memory m)
+		struct Request
 		{
-			Memory cm = m.GetLine();
-			Memory type = cm.GetWord(), path= cm.GetWord(), proto= cm.GetWord(), command;
+			std::string_view type;
+			std::string_view path;
+			std::string_view proto;
+			std::string_view command;
+
+			std::vector<uint8_t> raw;
+			gsl::span<uint8_t> body;
+
+			std::map<std::string_view, std::string_view> headers;
+			std::map<std::string_view, std::string_view> parameters;
+		};
+
+		static Request ParseRequest(std::vector<uint8_t> && _m, gsl::span<uint8_t> body)
+		{
+			Request result;
+
+			Helper m(_m);
+			auto cm = m.GetLine();
+	
+			result.type = cm.GetWord(); 
+			Helper path = cm.GetWord(), command;
+			result.proto = cm.GetWord(); 
+			
 			std::tie(path,command) = path.Divide('?');
 
-			std::map<Memory,Memory> headers;
+			result.path = path;
+			result.command = command;
+			result.body = body;
 
-			Memory line = m.GetLine();
+			Helper line = m.GetLine();
 			while(line.size())
 			{
 				auto k = line.GetWord(), v = line.GetWord();
-				headers[k] = v;
+				result.headers[k] = v;
 				line = m.GetLine();
 			}
 
-			return std::make_tuple(type,path,proto,command,headers);
+			while (command.size())
+			{
+				auto k = command.GetWord('='), v = command.GetWord('&');
+				result.parameters[k] = v;
+			}
+
+			result.raw = std::move(_m);
+
+			return result;
 		}
 
-		template<std::size_t... I> static auto _Parameters(Memory & cmd, std::index_sequence<I...>)
+		struct Response
 		{
-			return std::make_tuple((I,cmd.GetWord('&').SkipWord('='))...);
-		}
+			std::string_view proto;
+			std::string_view _status;
+			std::string_view msg;
 
-		template<std::size_t N, typename Indices = std::make_index_sequence<N>> static auto Parameters(Memory & cmd)
+			std::vector<uint8_t> raw;
+			gsl::span<uint8_t> body;
+
+			int status = 0;
+
+			std::map<std::string_view, std::string_view> headers;
+		};
+
+		static Response ParseResponse(vector<uint8_t> && _m, gsl::span<uint8_t> body)
 		{
-			return _Parameters(cmd, Indices{});
-		}
+			Response result;
 
-		static std::tuple<Memory,Memory,Memory,std::map<Memory,Memory> > Response(Memory m)
-		{
-			Memory cm = m.GetLine();
-			Memory proto = cm.GetWord(), status = cm.GetWord(), msg= cm.GetWord();
+			Helper m(_m);
+			Helper cm = m.GetLine();
+			Helper proto = cm.GetWord(), status = cm.GetWord(), msg= cm.GetWord();
 
-			std::map<Memory,Memory> headers;
+			result.proto = proto;
+			result._status = status;
+			result.msg = msg;
+			result.body = body;
 
-			Memory line = m.GetLine();
+			result.status = status;
+
+			Helper line = m.GetLine();
 			while(line.size())
 			{
 				auto k = line.GetWord(), v = line.GetWord();
-				headers[k] = v;
+				result.headers[k] = v;
 				line = m.GetLine();
 			}
 
-			return std::make_tuple(proto,status,msg,headers);
-		}*/
+			result.raw = std::move(_m);
 
-		template <typename C > static std::pair<std::vector<uint8_t>, gsl::span<uint8_t> > ReadBlocking(C & c)
+			return result;
+		}
+
+		template <typename C > static std::pair<std::vector<uint8_t>, gsl::span<uint8_t> > ReadResponse(C & c)
 		{
 			std::pair<std::vector<uint8_t>, gsl::span<uint8_t> > result;
 			bool finished = false;
@@ -122,10 +206,10 @@ namespace mhttp
 				auto now = std::chrono::high_resolution_clock::now();
 
 				auto count = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
-				if(5 < count)
+				if(10 < count)
 					throw std::runtime_error("timeout");
 
-				if(!Read(c,[&](auto & c, std::vector<uint8_t> r, gsl::span<uint8_t> m)
+				if(!Read(c,[&](auto & c, std::vector<uint8_t> && r, gsl::span<uint8_t> m)
 				{
 					finished = true;
 					result = std::make_pair(std::move(r),m);
@@ -214,7 +298,8 @@ RETRY:
 
 							if (it != c.read_buffer.data() + start)
 							{
-								//al = stoi(it);
+								auto off = std::distance(c.read_buffer.data(), it) + 15;
+								al = std::stoi((const char*)(c.read_buffer.data() + off));
 								if (al > 1024 * 1024 * 8)
 									return false;
 							}
@@ -231,11 +316,12 @@ RETRY:
 							else
 							{
 								auto single = reset(message_size);
+								gsl::span<uint8_t> body(single.data() + start + 4, al);
 
 								c.read_count++;
 								c.read_bytes += single.size();
 
-								m(c,std::move(single),gsl::span(single.data()+start+4,al));
+								m(c,std::move(single),body);
 
 								if (c.read_buffer.size())
 									goto RETRY; //Another request has been read and is waiting.
@@ -253,7 +339,7 @@ RETRY:
 
 		template < typename C, typename M > static bool Write(C & c, M m,bool & idle)
 		{
-			return Common::Write(c,m,idle);
+			return Common::WriteRaw(c,m,idle);
 		}
 	};
 
@@ -313,7 +399,7 @@ RETRY:
 
 		template < typename C, typename M > static bool Write(C & c, M m,bool & idle)
 		{
-			return Common::Write(c,m,idle);
+			return Common::WriteMessage(c,m,idle);
 		}
 	};
 };

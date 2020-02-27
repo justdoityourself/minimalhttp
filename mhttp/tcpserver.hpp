@@ -17,9 +17,9 @@
 namespace mhttp
 {
 	using sock_t = BufferedConnection< TcpConnection >;
-	using io_t = std::function< void( sock_t&, std::vector<uint8_t> , gsl::span<uint8_t>) >;
-	using event_p = std::tuple< sock_t*, std::vector<uint8_t>, gsl::span<uint8_t> >;
-	using event_f = std::function< void(event_p) >;
+	using io_t = std::function< void( sock_t&, std::vector<uint8_t>&&, gsl::span<uint8_t>) >;
+	using event_p = std::tuple< sock_t*, std::vector<uint8_t> , gsl::span<uint8_t> >;
+	using event_f = std::function< void(event_p &&) >;
 	using listen_t = std::function< void( TcpConnection*, TcpAddress, ConnectionType, uint32_t ) >;
 
 	auto p1_t = std::placeholders::_1;
@@ -47,7 +47,7 @@ namespace mhttp
 
 		struct Options
 		{
-			uint32_t event_threads = 1;
+			size_t event_threads = 1;
 		};
 
 		TcpServer(on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, Options o = Options(), ThreadHub& _pool = Threads())
@@ -58,6 +58,24 @@ namespace mhttp
 			, TcpConnections< sock_t, on_disconnect_t > ( d,_pool )
 			, EventHandler< event_p, event_f >( o.event_threads, std::bind( &TcpServer::RawEvent, this, p1_t), _pool )
 			, pool(_pool) {}
+
+		~TcpServer()
+		{
+			Shutdown();
+		}
+
+		void Shutdown()
+		{
+			for (auto& e : interfaces)
+				e.Shutdown();
+
+			pool.Stop();
+		}
+
+		void Join()
+		{
+			pool.Join();
+		}
 
 		void Open(uint16_t port, const std::string & options, ConnectionType type) 
 		{ 
@@ -90,7 +108,7 @@ namespace mhttp
 			}
 
 			auto enable = OnAccept(bc);
-			bc.UseAsync();
+			bc.Async();
 
 			if(enable.first) 
 				TcpWriter<sock_t, on_write_t, on_error_t>::Manage(&bc);
@@ -99,47 +117,43 @@ namespace mhttp
 				TcpReader<sock_t,io_t, on_error_t>::Manage(&bc);
 		}
 
-		void RawMessage(sock_t & c, std::vector<uint8_t> v, gsl::span<uint8_t> s)
+		void RawMessage(sock_t & c, std::vector<uint8_t> && v, gsl::span<uint8_t> s)
 		{
 			c.pending++;
 			EventHandler< event_p, event_f >::Push( std::make_tuple( &c, std::move(v), s ) );
 		}
 
-		void RawEvent(event_p p)
+		void RawEvent(event_p && p)
 		{
 			OnMessageEvent(*std::get<0>(p),std::get<1>(p),std::get<2>(p));
 			std::get<0>(p)->pending --;
 		}
 	};
 
-
-	template < typename F > int make_http_server(const string_view port, F f)
+	template < typename F > auto& make_tcp_server(const string_view port, F f, size_t threads = 1)
 	{
 		auto on_connect = [&](const auto& c) { return make_pair(true, true); };
 		auto on_disconnect = [&](const auto& c) {};
 		auto on_error = [&](const auto& c) {};
 		auto on_write = [&](const auto& mc, const auto& c) {};
 
-		TcpServer http(on_connect, on_disconnect, [&](auto& client, const auto& request, const auto& body)
+		static TcpServer tcp(on_connect, on_disconnect, [&](auto& client, const auto& request, const auto& body)
 		{
-			//On Request:
-			//
-
 			try
 			{
 				f(client, request, body);
 			}
 			catch (...)
 			{
-				//client.Http400();
+				//Something went wrong. Let's shut this socket down.
+				client.reader_fault = true;
+				client.writer_fault = true;
 			}
 
-		}, on_error, on_write);
+		}, on_error, on_write, { threads });
 
-		http.Open((uint16_t)stoi(port.data()), "", ConnectionType::http);
+		tcp.Open( (uint16_t) stoi(port.data()), "", ConnectionType::message);
 
-		Threads().Wait();
-
-		return 0;
+		return tcp;
 	}
 }

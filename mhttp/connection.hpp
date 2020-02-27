@@ -34,7 +34,14 @@ namespace mhttp
 	template < typename T > class BufferedConnection : public BasicConnection<T>
 	{
 	public:
+		BufferedConnection() {}
+
 		BufferedConnection(T &c, TcpAddress &a, ConnectionType t,uint32_t _uid)
+		{
+			Init(c, a, t, _uid);
+		}
+
+		void Init(T& c, TcpAddress& a, ConnectionType t, uint32_t _uid)
 		{
 			BasicConnection<T>::address = a;
 			BasicConnection<T>::SetConnection(c);
@@ -57,7 +64,7 @@ namespace mhttp
 		std::mutex ql;
 		std::queue<std::vector<uint8_t>> queue;
 
-		bool Try(std::vector<uint8_t>& v)
+		bool TryWrite(std::vector<uint8_t>& v)
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
@@ -70,7 +77,7 @@ namespace mhttp
 			return true;
 		}
 
-		void Write(std::vector<uint8_t>& v)
+		void AsyncWrite(std::vector<uint8_t> && v)
 		{
 			std::lock_guard<std::mutex> lock(ql);
 

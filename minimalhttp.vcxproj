@@ -107,6 +107,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Test|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>..\d8u;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -213,10 +214,11 @@
     <ClCompile Include="minimalhttp.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="mhttp\async.hpp" />
     <ClInclude Include="mhttp\common.hpp" />
     <ClInclude Include="mhttp\connection.hpp" />
     <ClInclude Include="mhttp\connections.hpp" />
-    <ClInclude Include="mhttp\HttpClient.hpp" />
+    <ClInclude Include="mhttp\http.hpp" />
     <ClInclude Include="mhttp\listener.hpp" />
     <ClInclude Include="mhttp\platform.hpp" />
     <ClInclude Include="mhttp\protocols.hpp" />

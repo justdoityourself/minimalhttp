@@ -77,6 +77,8 @@ namespace mhttp
 
 		void Release() { socket = { 0, 0, 0 }; }
 
+		bool Valid() { return socket.handle != 0; }
+
 		bool Close()
 		{
 			if(socket.handle)
@@ -115,9 +117,9 @@ namespace mhttp
 			return 0 == zed_net_tcp_accept(&socket,&c.socket,address);
 		}
 
-		void UseAsync()
+		void Async(u_long val = 1)
 		{
-			zed_net_async(&socket);
+			zed_net_async(&socket, val);
 		}
 
 		bool Connect(const string_view s, int timeout = 0,int buffer = 128*1024)
@@ -151,7 +153,7 @@ namespace mhttp
 
 		template <typename T> int Send(T && t)
 		{
-			return zed_net_tcp_socket_send(&socket,t.data(),t.size());
+			return zed_net_tcp_socket_send(&socket,t.data(),(int)t.size());
 		}
 
 		template <typename T> int Write(T && t)
@@ -175,7 +177,7 @@ namespace mhttp
 
 		template <typename T> int Receive( T && t )
 		{
-			return zed_net_tcp_socket_receive(&socket, (char*)t.data(), t.size());
+			return zed_net_tcp_socket_receive(&socket, (char*)t.data(), (int)t.size());
 		}
 
 		template <typename T> int Read(T && t)

@@ -221,14 +221,14 @@ static int zed_net__error(const char *message) {
 #endif
  }
 
- int zed_net_async(zed_net_socket_t * sock)
+ int zed_net_async(zed_net_socket_t * sock, u_long val = 1)
  {	 
 #ifdef _WIN32
-	 u_long non_blocking = 1;
+	 u_long non_blocking = val;
         if (ioctlsocket(sock->handle, FIONBIO, &non_blocking) != 0)
             return zed_net__error("Failed to set socket to non-blocking");
 #else
-	 int non_blocking = 1;
+	 int non_blocking = val;
         if (fcntl(sock->handle, F_SETFL, O_NONBLOCK, non_blocking) != 0)
             return zed_net__error("Failed to set socket to non-blocking");
 #endif

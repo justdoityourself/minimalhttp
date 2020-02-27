@@ -39,6 +39,11 @@ namespace mhttp
 			Listen(_port,options,_type,pool);
 		}
 
+		void Shutdown()
+		{
+			server.Close();
+		}
+
 		void Listen(uint16_t _port,const std::string _options, ConnectionType _type, ThreadHub& pool = Threads())
 		{
 			EnableNetworking();
@@ -55,8 +60,14 @@ namespace mhttp
 				{
 					C c;
 					TcpAddress address;
-					if(!server.Accept(c,&address))
-						throw server.Error();
+					if (!server.Accept(c, &address))
+					{
+						if (!server.Valid())
+							break; //Socket was closed gracefully.
+						else
+							throw server.Error();
+					}
+
 
 					try
 					{
