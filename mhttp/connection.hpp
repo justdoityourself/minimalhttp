@@ -31,10 +31,11 @@ namespace mhttp
 		std::chrono::high_resolution_clock::time_point last_message  = std::chrono::high_resolution_clock::now();
 	};
 
-	template < typename T, bool multiplex_t = false > class BufferedConnection : public BasicConnection<T>
+	template < typename T > class BufferedConnection : public BasicConnection<T>
 	{
 	public:
-		bool Multiplex() { return multiplex_t; }
+		bool multiplex = false;
+		bool Multiplex() { return multiplex; }
 
 		BufferedConnection() {}
 
@@ -78,10 +79,29 @@ namespace mhttp
 			if (!queue.size())
 				return false;
 
+			if (!queue.front().size())
+				return false;
+
 			v = std::move(queue.front());
 			queue.pop();
 
 			return true;
+		}
+
+		void ActivateWrite(void* queue, std::vector<uint8_t>&& v)
+		{
+			std::lock_guard<std::mutex> lock(ql);
+
+			*((std::vector<uint8_t>*)queue) = std::move(v);
+		}
+
+		void * QueueWrite()
+		{
+			std::lock_guard<std::mutex> lock(ql);
+
+			queue.push(std::vector<uint8_t>(0));
+
+			return (void*)&queue.back();
 		}
 
 		void AsyncWrite(std::vector<uint8_t> && v)
@@ -98,10 +118,29 @@ namespace mhttp
 			if (!maps.size())
 				return false;
 
+			if (!maps.front().size())
+				return false;
+
 			m = maps.front();
 			maps.pop();
 
 			return true;
+		}
+
+		void ActivateMap(void* queue, gsl::span<uint8_t> m)
+		{
+			std::lock_guard<std::mutex> lock(ql);
+
+			*((gsl::span<uint8_t>*)queue) = m;
+		}
+
+		void* QueueMap()
+		{
+			std::lock_guard<std::mutex> lock(ql);
+
+			maps.push(gsl::span<uint8_t>((uint8_t*)nullptr,(size_t)0));
+
+			return (void*)&maps.back();
 		}
 
 		void AsyncMap(gsl::span<uint8_t> m)

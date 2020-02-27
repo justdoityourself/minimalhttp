@@ -59,6 +59,7 @@ namespace mhttp
 								if( !Http::Read(i,OnMessage,connection_idle) ) 
 									goto FAULT;
 								break;
+							case ConnectionType::writemap32:
 							case ConnectionType::message:
 								if( !Message::Read(i,OnMessage,connection_idle) ) 
 									goto FAULT;

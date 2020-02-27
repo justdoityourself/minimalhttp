@@ -95,19 +95,19 @@ namespace mhttp
 		}
 	};
 
-	template < typename F > auto& make_http_server(const string_view port, F f, size_t threads = 1)
+	template < typename F > auto& make_http_server(const string_view port, F f, size_t threads = 1, bool mplex = false)
 	{
 		auto on_connect = [&](const auto& c) { return make_pair(true, true); };
 		auto on_disconnect = [&](const auto& c) {};
 		auto on_error = [&](const auto& c) {};
 		auto on_write = [&](const auto& mc, const auto& c) {};
 
-		static TcpServer http(on_connect, on_disconnect, [&](auto& _client, auto&& _request, const auto& body)
+		static TcpServer http(on_connect, on_disconnect, [&](auto* _client, auto&& _request, auto body,auto * mplex)
 		{
 			//On Request:
 			//
 
-			auto& client = *(HttpConnection*)&_client;
+			auto& client = *(HttpConnection*)_client;
 
 			try
 			{
@@ -120,7 +120,7 @@ namespace mhttp
 
 		}, on_error, on_write, { threads });
 
-		http.Open((uint16_t)stoi(port.data()), "", ConnectionType::http);
+		http.Open((uint16_t)stoi(port.data()), "", ConnectionType::http, mplex);
 
 		return http;
 	}
