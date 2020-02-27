@@ -13,7 +13,7 @@ namespace mhttp
 	class ThreadHub
 	{
 	public:
-		ThreadHub():run(true){}
+		ThreadHub() { Start(); }
 		~ThreadHub()
 		{
 			Stop();
@@ -36,6 +36,8 @@ namespace mhttp
 				i.get();
 
 			threads.clear();
+
+			Start();
 		}
 
 		void Join()
@@ -58,12 +60,21 @@ namespace mhttp
 			}
 		}
 
-		void Delay(uint32_t d) { std::this_thread::sleep_for(std::chrono::milliseconds(d)); }
+		void Delay(uint32_t d) 
+		{ 
+			std::this_thread::sleep_for(std::chrono::milliseconds(d)); 
+		}
 
-		template < typename F > void Async(F f,uint32_t d = 0) { if(d) Delay(d); threads.push_back(std::future<void>(std::async(std::launch::async,f, std::ref(run)))); }
+		template < typename F > void Async(F f,uint32_t d = 0) 
+		{ 
+			if(d) 
+				Delay(d); 
+			
+			threads.push_back( std::future<void>( std::async(std::launch::async,f, std::ref(run)) ) ); 
+		}
 
 		std::list<std::future<void>> threads;
-		bool run;
+		bool run=false;
 	};
 
 	template <typename T> class ThreadQueue // MCMP

@@ -7,61 +7,8 @@
 #include <string_view>
 #include <thread>
 
-/*
-	How to use as blocking client:
+#include "../gsl-lite.hpp"
 
-	Threads().Async([&](bool & run)
-	{
-		TcpConnection client;
-
-		if(!client.Connect("127.0.0.1:9923"))
-			throw "Client failed to connect";
-
-		int sent = client.Write(Memory("\x11" "\x00" "\x00" "\x00" "this is a message"));
-
-		if(sent == -1)
-			throw "Client connection failed write";
-
-		std::array<uint8_t,1024> buffer;
-		int read = client.Receive(buffer);
-
-		if(read == -1)
-			throw "Client connection failed read";
-	},2000);
-
-	How to use as Async Server:
-
-	auto onconnect = [](BufferedConnection & c)
-	{
-		return std::make_pair(true,true);
-	};
-
-	auto ondisconnect = [](BufferedConnection & c)
-	{
-		std::cout << "Connection Closed." << std::endl;
-	};
-
-	auto onread = [](BufferedConnection & c,Memory & m)
-	{
-		std::cout << "Have Read " << m.size() << " bytes." << std::endl;
-	};
-
-	auto onwrite = [](BufferedConnection & c, uint32_t id)
-	{
-		std::cout << "Write Complete." << std::endl;
-	};
-
-	auto onerror = [](BufferedConnection & c)
-	{
-		std::cout << "Connection lost unexpectedly." << std::endl;
-	};
-
-	TcpServer<decltype(onconnect),decltype(ondisconnect),decltype(onread),decltype(onerror),decltype(onwrite)> server(onconnect,ondisconnect,onread,onerror,onwrite);
-
-	server.Open(9923,ConnectionType::message);
-
-	Threads().Join([&](const char * exception) { std::cout << exception << std::endl; } );
-*/
 
 namespace mhttp
 {
@@ -156,7 +103,7 @@ namespace mhttp
 			return zed_net_tcp_socket_send(&socket,t.data(),(int)t.size());
 		}
 
-		template <typename T> int Write(T && t)
+		template <typename T> int Write(const T & t)
 		{
 			auto remaining = t.size();
 			uint32_t offset = 0;
@@ -186,7 +133,7 @@ namespace mhttp
 			uint32_t offset = 0;
 			while(remaining)
 			{
-				auto read = zed_net_tcp_socket_receive(&socket,t.data()+offset,t.size()-offset);
+				auto read = zed_net_tcp_socket_receive(&socket,t.data()+offset,(int)t.size()-offset);
 				if(read == -1)
 					return -1;
 				else if(!read)
@@ -197,6 +144,46 @@ namespace mhttp
 			}
 
 			return offset;
+		}
+	};
+
+	class MsgConnection : public TcpConnection
+	{
+	public:
+		MsgConnection(const std::string& s) { Connect(s); }
+
+		template < typename T > void SendMessage( const T & t)
+		{
+			uint32_t size = (uint32_t)t.size();
+			Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t)));
+			Write(t);
+		}
+
+		std::vector<uint8_t> ReceiveMessage()
+		{
+			uint32_t size;
+			Read(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t)));
+
+			std::vector<uint8_t> result(size);
+			Read(result);
+
+			return result;
+		}
+
+		template < typename T > std::vector<uint8_t> Transact(const T& t)
+		{
+			SendMessage(t);
+			return ReceiveMessage();
+		}
+
+		template < typename ID, typename T > std::vector<uint8_t> Transact32(const ID& id, const T& t)
+		{
+			uint32_t size = (uint32_t)t.size();
+			Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t)));
+			Write(gsl::span<uint8_t>((uint8_t*)id.data(), 32));
+			Write(t);
+
+			return ReceiveMessage();
 		}
 	};
 }

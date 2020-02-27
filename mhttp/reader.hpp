@@ -45,6 +45,9 @@ namespace mhttp
 							if(i.writer_fault) 
 								goto FAULT;
 
+							if (!i.Multiplex() && i.ReadLock())
+								continue; //If we do not have multiplexing enabled then stop reading while the current object is being handled.
+
 							priority = (uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(now - i.last_message).count();
 
 							if(priority < i.priority)
@@ -58,6 +61,10 @@ namespace mhttp
 								break;
 							case ConnectionType::message:
 								if( !Message::Read(i,OnMessage,connection_idle) ) 
+									goto FAULT;
+								break;
+							case ConnectionType::map32:
+								if (!Map32::Read(i, OnMessage, connection_idle))
 									goto FAULT;
 								break;
 							default:

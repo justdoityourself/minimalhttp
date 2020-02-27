@@ -50,6 +50,10 @@ namespace mhttp
 								if(!Message::Write(i,OnMessage,idle)) 
 									goto FAULT;
 								break;
+							case ConnectionType::map32:
+								if (!Map32::Write(i, OnMessage, idle))
+									goto FAULT;
+								break;
 							default:
 							FAULT:
 								i.writer_fault = true;

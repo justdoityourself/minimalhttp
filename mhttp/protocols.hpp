@@ -231,6 +231,10 @@ namespace mhttp
 			{
 				if (c.read_offset > end)
 				{
+					/*
+						This condition occurs only when the connection is being used for multiplexing.
+					*/
+
 					std::vector<uint8_t> remainder; remainder.reserve(buffer_size);
 
 					remainder.insert(remainder.end(), c.read_buffer.data() + end, c.read_buffer.data() + c.read_offset);
@@ -373,6 +377,8 @@ RETRY:
 					m( c, std::move(c.read_buffer) , gsl::span<uint8_t>(c.read_buffer) );
 
 					c.read_offset = 0;
+
+					if(!c.Multiplex()) break;
 				}
 				else
 				{
@@ -400,6 +406,95 @@ RETRY:
 		template < typename C, typename M > static bool Write(C & c, M m,bool & idle)
 		{
 			return Common::WriteMessage(c,m,idle);
+		}
+	};
+
+	class Map32
+	{
+	public:
+
+		template < typename T > static std::pair<uint32_t, gsl::span<uint8_t>> DecodeHeader(const T& t)
+		{
+			return std::make_pair(*((uint32_t*)t.data()), gsl::span<uint8_t>(((uint8_t*)t.data()) + sizeof(uint32_t), t.size() - sizeof(uint32_t)));
+		}
+
+		/*template < typename T > static std::vector<uint8_t> MakeHeader(const T& t, size_t sz)
+		{
+			return std::make_pair(*((uint32_t*)t.data()), gsl::span<uint8_t>(((uint8_t*)t.data()) + sizeof(uint32_t), t.size() - sizeof(uint32_t)));
+		}*/
+
+		template < typename C, typename M > static bool Read(C& c, M m, bool& idle)
+		{
+			while (true)
+			{
+				if (c.read_buffer.size())
+				{
+					auto r = c.Receive(gsl::span<uint8_t>(c.read_buffer.data() + c.read_offset, c.read_buffer.size() - c.read_offset));
+
+					if (!r)
+						break;
+
+					if (r == -1)
+						return false; //error
+
+					idle = false;
+
+					c.read_offset += r;
+
+					if (c.read_offset != c.read_buffer.size())
+						return true;
+
+					c.read_count++;
+					c.read_bytes += c.read_buffer.size();
+
+					m(c, std::move(c.read_buffer), gsl::span<uint8_t>(c.read_buffer));
+
+					c.read_offset = 0;
+
+					if (!c.Multiplex()) break;
+				}
+				else
+					c.read_buffer.resize(32 + sizeof(uint32_t));
+			}
+
+			return true;
+		}
+
+		template < typename C, typename M > static bool Write(C& c, M m, bool& idle)
+		{
+			while (true)
+			{
+				if (c.map.size())
+				{
+					auto r = c.Send(gsl::span<uint8_t>(c.map.data() + c.write_offset, c.map.size() - c.write_offset));
+
+					if (!r) break;
+
+					if (r == -1)
+						return false;
+
+					idle = false;
+
+					c.write_offset += r;
+					if (c.write_offset != c.map.size())
+						return true;
+
+					c.write_bytes += c.map.size();
+					m(c, c.write_count++);
+
+					c.map = gsl::span<uint8_t>();
+					c.write_offset = 0;
+				}
+
+				if (!c.TryMap(c.map))
+					break;
+
+				uint32_t size = (uint32_t)c.map.size();
+				if (sizeof(uint32_t) != c.Send(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))))
+					return false;
+			}
+
+			return true;
 		}
 	};
 };

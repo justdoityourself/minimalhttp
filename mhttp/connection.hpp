@@ -31,9 +31,11 @@ namespace mhttp
 		std::chrono::high_resolution_clock::time_point last_message  = std::chrono::high_resolution_clock::now();
 	};
 
-	template < typename T > class BufferedConnection : public BasicConnection<T>
+	template < typename T, bool multiplex_t = false > class BufferedConnection : public BasicConnection<T>
 	{
 	public:
+		bool Multiplex() { return multiplex_t; }
+
 		BufferedConnection() {}
 
 		BufferedConnection(T &c, TcpAddress &a, ConnectionType t,uint32_t _uid)
@@ -49,6 +51,9 @@ namespace mhttp
 			BasicConnection<T>::type = t;
 		}
 
+		bool ReadLock() { return read_lock; }
+
+		bool read_lock = false;
 		size_t read_offset = 0;
 		std::vector<uint8_t> read_buffer;
 
@@ -57,12 +62,14 @@ namespace mhttp
 
 		size_t write_offset = 0;
 		std::vector<uint8_t> write_buffer;
+		gsl::span<uint8_t> map;
 
 		size_t write_count = 0;
 		size_t write_bytes = 0;
 
 		std::mutex ql;
 		std::queue<std::vector<uint8_t>> queue;
+		std::queue<gsl::span<uint8_t>> maps;
 
 		bool TryWrite(std::vector<uint8_t>& v)
 		{
@@ -82,6 +89,26 @@ namespace mhttp
 			std::lock_guard<std::mutex> lock(ql);
 
 			queue.push(std::move(v));
+		}
+
+		bool TryMap(gsl::span<uint8_t> & m)
+		{
+			std::lock_guard<std::mutex> lock(ql);
+
+			if (!maps.size())
+				return false;
+
+			m = maps.front();
+			maps.pop();
+
+			return true;
+		}
+
+		void AsyncMap(gsl::span<uint8_t> m)
+		{
+			std::lock_guard<std::mutex> lock(ql);
+
+			maps.push(m);
 		}
 	};
 }

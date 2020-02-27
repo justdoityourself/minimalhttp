@@ -33,7 +33,8 @@ namespace mhttp
 				, typename on_error_t
 				, typename on_write_t > class TcpServer
 
-		: private TcpWriter< sock_t, on_write_t, on_error_t >
+		: public ThreadHub
+		, private TcpWriter< sock_t, on_write_t, on_error_t >
 		, private TcpReader< sock_t, io_t, on_error_t >
 		, public TcpConnections< sock_t, on_disconnect_t >
 		, private EventHandler< event_p, event_f >
@@ -42,7 +43,6 @@ namespace mhttp
 
 		on_accept_t OnAccept;
 		on_message_t OnMessageEvent;
-		ThreadHub& pool;
 	public:
 
 		struct Options
@@ -50,14 +50,13 @@ namespace mhttp
 			size_t event_threads = 1;
 		};
 
-		TcpServer(on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, Options o = Options(), ThreadHub& _pool = Threads())
+		TcpServer(on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, Options o = Options())
 			: OnAccept ( a )
 			, OnMessageEvent ( r )
-			, TcpWriter< sock_t, on_write_t, on_error_t > ( w, e, _pool )
-			, TcpReader< sock_t, io_t, on_error_t> ( std::bind( &TcpServer::RawMessage, this, p1_t, p2_t, p3_t), e, _pool )
-			, TcpConnections< sock_t, on_disconnect_t > ( d,_pool )
-			, EventHandler< event_p, event_f >( o.event_threads, std::bind( &TcpServer::RawEvent, this, p1_t), _pool )
-			, pool(_pool) {}
+			, TcpWriter< sock_t, on_write_t, on_error_t > ( w, e, *this)
+			, TcpReader< sock_t, io_t, on_error_t> ( std::bind( &TcpServer::RawMessage, this, p1_t, p2_t, p3_t), e, *this)
+			, TcpConnections< sock_t, on_disconnect_t > ( d, *this)
+			, EventHandler< event_p, event_f >( o.event_threads, std::bind( &TcpServer::RawEvent, this, p1_t), *this) {}
 
 		~TcpServer()
 		{
@@ -69,17 +68,17 @@ namespace mhttp
 			for (auto& e : interfaces)
 				e.Shutdown();
 
-			pool.Stop();
+			ThreadHub::Stop();
 		}
 
 		void Join()
 		{
-			pool.Join();
+			ThreadHub::Join();
 		}
 
 		void Open(uint16_t port, const std::string & options, ConnectionType type) 
 		{ 
-			interfaces.emplace_back( port, options,type, std::bind( &TcpServer::DoAccept, this, p1_t, p2_t, p3_t, p4_t), pool );
+			interfaces.emplace_back( port, options,type, std::bind( &TcpServer::DoAccept, this, p1_t, p2_t, p3_t, p4_t), *this );
 		}
 
 		void Connect(const std::string & host, ConnectionType type) 
@@ -119,6 +118,9 @@ namespace mhttp
 
 		void RawMessage(sock_t & c, std::vector<uint8_t> && v, gsl::span<uint8_t> s)
 		{
+			if (!c.Multiplex())
+				c.read_lock = true;
+
 			c.pending++;
 			EventHandler< event_p, event_f >::Push( std::make_tuple( &c, std::move(v), s ) );
 		}
@@ -127,6 +129,9 @@ namespace mhttp
 		{
 			OnMessageEvent(*std::get<0>(p),std::get<1>(p),std::get<2>(p));
 			std::get<0>(p)->pending --;
+
+			if (!std::get<0>(p)->Multiplex())
+				std::get<0>(p)->read_lock = false;
 		}
 	};
 
@@ -137,11 +142,11 @@ namespace mhttp
 		auto on_error = [&](const auto& c) {};
 		auto on_write = [&](const auto& mc, const auto& c) {};
 
-		static TcpServer tcp(on_connect, on_disconnect, [&](auto& client, const auto& request, const auto& body)
+		static TcpServer tcp(on_connect, on_disconnect, [&](auto& client, auto&& request, const auto& body)
 		{
 			try
 			{
-				f(client, request, body);
+				f(client, std::move(request));
 			}
 			catch (...)
 			{
@@ -155,5 +160,32 @@ namespace mhttp
 		tcp.Open( (uint16_t) stoi(port.data()), "", ConnectionType::message);
 
 		return tcp;
+	}
+
+	template < typename F > auto& make_map_server(const string_view port, F f, size_t threads = 1)
+	{
+		auto on_connect = [&](const auto& c) { return make_pair(true, true); };
+		auto on_disconnect = [&](const auto& c) {};
+		auto on_error = [&](const auto& c) {};
+		auto on_write = [&](const auto& mc, const auto& c) {};
+
+		static TcpServer map32(on_connect, on_disconnect, [&](auto& client, auto&& request, const auto& body)
+		{
+			try
+			{
+				f(client, std::move(request));
+			}
+			catch (...)
+			{
+				//Something went wrong. Let's shut this socket down.
+				client.reader_fault = true;
+				client.writer_fault = true;
+			}
+
+		}, on_error, on_write, { threads });
+
+		map32.Open((uint16_t)stoi(port.data()), "", ConnectionType::map32);
+
+		return map32;
 	}
 }
