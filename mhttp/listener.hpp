@@ -21,19 +21,19 @@ namespace mhttp
 
 	uint32_t ProgramUniqueId() { static Unique u; return u.Get(); }
 
-	template < typename C, typename on_accept_t >class TcpListener
+	template < typename C >class TcpListener
 	{
 		uint16_t port;
 		ConnectionType type;
-		on_accept_t OnAccept;
+		listen_t OnAccept;
 		C server;
 		std::string options;
 
 	public:
-		TcpListener(on_accept_t _on_accept)
+		TcpListener(listen_t _on_accept)
 			: OnAccept(_on_accept) {}
 
-		TcpListener(uint16_t _port, const std::string & options, ConnectionType _type, on_accept_t _on_accept, bool multiplex, ThreadHub& pool = Threads())
+		TcpListener(uint16_t _port, const std::string & options, ConnectionType _type, listen_t _on_accept, bool multiplex, ThreadHub& pool = Threads())
 			: OnAccept(_on_accept)
 		{
 			Listen(_port,options,_type,multiplex,pool);

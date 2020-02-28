@@ -128,11 +128,16 @@ namespace mhttp
 
 	ThreadHub& Threads() { static ThreadHub hub; return hub; }
 
-	template < typename T, typename t_handler > class EventHandler : public ThreadQueue<T>
+	
+
+	template < typename T > class EventHandler : public ThreadQueue<T>
 	{
+		using t_handler = std::function< void(T&&) >;
+
 		ThreadHub & threads;
 		t_handler handler;
 	public:
+
 		EventHandler(t_handler h,ThreadHub & _threads= Threads()) 
 			: handler(h)
 			, threads(_threads) {}

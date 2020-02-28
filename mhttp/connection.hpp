@@ -6,11 +6,13 @@
 #include <atomic>
 #include <list>
 
+#include "tcp.hpp"
 #include "common.hpp"
 #include "protocols.hpp"
 
 namespace mhttp
 {
+
 	template < typename T > class BasicConnection : public T
 	{
 	public:
@@ -150,4 +152,19 @@ namespace mhttp
 			maps.push(gsl::span<uint8_t>((uint8_t*)t.data(),t.size()));
 		}
 	};
+
+	auto p1_t = std::placeholders::_1;
+	auto p2_t = std::placeholders::_2;
+	auto p3_t = std::placeholders::_3;
+	auto p4_t = std::placeholders::_4;
+	auto p5_t = std::placeholders::_5;
+
+	using listen_t = std::function< void(TcpConnection*, TcpAddress, ConnectionType, uint32_t, bool) >;
+	using sock_t = BufferedConnection< TcpConnection >;
+	using io_t = std::function< void(sock_t&, std::vector<uint8_t>&&, gsl::span<uint8_t>) >;
+	using on_accept_t = std::function< std::pair<bool, bool>(sock_t&) >;
+	using on_disconnect_t = std::function< void(sock_t&) >;
+	using on_write_t = std::function< void(sock_t&, size_t) >;
+	using on_error_t = std::function< void(sock_t&) >;
+	using on_message_t = std::function< void(sock_t*, std::vector<uint8_t>, gsl::span<uint8_t>, void*) >;
 }

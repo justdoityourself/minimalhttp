@@ -67,6 +67,11 @@ namespace mhttp
 			AsyncWrite(FormatHttpResponse("400 Bad Request", gsl::span<uint8_t>(), headers...));
 		}
 
+		template < typename ... t_args > void Http404(t_args...headers)
+		{
+			AsyncWrite(FormatHttpResponse("404 Not Found", gsl::span<uint8_t>(), headers...));
+		}
+
 
 		//Client Functions:
 		//
@@ -95,14 +100,14 @@ namespace mhttp
 		}
 	};
 
-	template < typename F > auto& make_http_server(const string_view port, F f, size_t threads = 1, bool mplex = false)
+	template < typename F > auto make_http_server(const string_view port, F f, size_t threads = 1, bool mplex = false)
 	{
-		auto on_connect = [&](const auto& c) { return make_pair(true, true); };
-		auto on_disconnect = [&](const auto& c) {};
-		auto on_error = [&](const auto& c) {};
-		auto on_write = [&](const auto& mc, const auto& c) {};
+		auto on_connect = [](const auto& c) { return make_pair(true, true); };
+		auto on_disconnect = [](const auto& c) {};
+		auto on_error = [](const auto& c) {};
+		auto on_write = [](const auto& mc, const auto& c) {};
 
-		static TcpServer http(on_connect, on_disconnect, [&](auto* _client, auto&& _request, auto body,auto * mplex)
+		return TcpServer((uint16_t)stoi(port.data()), ConnectionType::http, on_connect, on_disconnect, [f](auto* _client, auto&& _request, auto body,auto * mplex)
 		{
 			//On Request:
 			//
@@ -111,17 +116,49 @@ namespace mhttp
 
 			try
 			{
-				f(client, Http::ParseRequest(std::move(_request), body));
+				f(client, Http::ParseRequest(std::move(_request), body),mplex);
 			}
 			catch (...)
 			{
 				client.Http400();
 			}
 
-		}, on_error, on_write, { threads });
-
-		http.Open((uint16_t)stoi(port.data()), "", ConnectionType::http, mplex);
-
-		return http;
+		}, on_error, on_write, mplex,{ threads });
 	}
+
+
+	using on_http_t = std::function < void(HttpConnection&, Http::Request, void*)>;
+
+	class HttpServer : private TcpServer
+	{
+		on_http_t on_request;
+	public:
+		HttpServer(on_http_t _req_cb, TcpServer::Options o = TcpServer::Options())
+			: on_request(_req_cb)
+			, TcpServer([&](auto* _client, auto&& _request, auto body, auto* mplex)
+			{
+				auto& client = *(HttpConnection*)_client;
+
+				try
+				{
+					on_request(client, Http::ParseRequest(std::move(_request), body), mplex);
+				}
+				catch (...)
+				{
+					client.Http400();
+				}
+
+			},o) { }
+
+		HttpServer(uint16_t port, on_http_t _req_cb, TcpServer::Options o = TcpServer::Options())
+			: HttpServer(_req_cb, o)
+		{
+			Open(port);
+		}
+
+		void Open(uint16_t port, const std::string& options="", bool mplex=false)
+		{
+			TcpServer::Open(port,options,ConnectionType::http,mplex);
+		}
+	};
 }

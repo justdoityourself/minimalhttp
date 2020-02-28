@@ -9,13 +9,16 @@
 
 namespace mhttp
 {
-	template < typename C, typename on_message_t, typename on_error_t >class TcpReader
+	class TcpReader
 	{
-		on_message_t OnMessage;
+		using C = sock_t;
+		io_t OnMessage;
 		on_error_t OnError;
 
 	public:
-		TcpReader(on_message_t _on_message_t, on_error_t _on_error_t, ThreadHub& pool = Threads())
+		TcpReader() {}
+
+		TcpReader(io_t _on_message_t, on_error_t _on_error_t, ThreadHub& pool = Threads())
 			: OnError(_on_error_t)
 			, OnMessage(_on_message_t)
 		{

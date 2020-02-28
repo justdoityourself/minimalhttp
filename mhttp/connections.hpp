@@ -6,11 +6,13 @@
 
 namespace mhttp
 {
-	template < typename C, typename on_disconnect_t > class TcpConnections
+	class TcpConnections
 	{
+		using C = sock_t;
 		on_disconnect_t OnDisconnect;
 
 	public:
+		TcpConnections() {}
 
 		TcpConnections(on_disconnect_t _on_disconnect_t, ThreadHub& pool = Threads())
 			: OnDisconnect(_on_disconnect_t)

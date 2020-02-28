@@ -25,7 +25,7 @@ TEST_CASE("Threaded MultiPlex HALFMAP", "[mhttp::]")
     for (auto& s : buffers)
         s = std::to_string(msgc++) + "THIS IS A MESSAGE";
 
-    auto& tcp = make_halfmap_server("8993", [&](auto& c, auto header, auto reply)
+    auto tcp = make_halfmap_server("8993", [&](auto& c, auto header, auto reply)
     {
         uint32_t dx = *(uint32_t*)header.data();
         c.ActivateMap(reply,buffers[dx]);
@@ -68,7 +68,7 @@ TEST_CASE("Threaded MultiPlex HALFMAP", "[mhttp::]")
 
 TEST_CASE("Simple TCP", "[mhttp::]")
 {
-    auto& tcp = make_tcp_server("8999", [&](auto& c, auto message)
+    auto tcp = make_tcp_server("8999", [&](auto& c, auto message, auto wr)
     {
         c.AsyncWrite(std::move(message));
     });
@@ -90,7 +90,7 @@ TEST_CASE("Simple TCP", "[mhttp::]")
 
 TEST_CASE("Simple Http Server", "[mhttp::]")
 {
-    auto & http = make_http_server("8032",[&](auto & c, const auto& request)
+    auto http = make_http_server("8032",[&](auto & c, auto request, auto wr)
     {
         switch(switch_t(request.type))
         {
@@ -169,7 +169,7 @@ TEST_CASE("Threaded Non-multiplexed TCP", "[mhttp::]")
 {
     constexpr auto lim = 100;
 
-    auto& tcp = make_tcp_server("8999", [&](auto& c, auto message)
+    auto tcp = make_tcp_server("8999", [&](auto& c, auto message, auto wr)
     {
         c.AsyncWrite(std::move(message));
     },4);
@@ -203,7 +203,7 @@ TEST_CASE("Threaded Http Server", "[mhttp::]")
 {
     constexpr auto lim = 100;
 
-    auto& http = make_http_server("8036", [&](auto& c, const auto& request)
+    auto http = make_http_server("8036", [&](auto& c, auto request, auto wr)
     {
         switch (switch_t(request.type))
         {
@@ -264,7 +264,7 @@ TEST_CASE("Threaded Non-multiplexed MAP", "[mhttp::]")
     std::mutex lk; //We have to simulate a global memory object
     std::list < std::vector<uint8_t > > _global;
 
-    auto& tcp = make_map_server("8993", [&](auto& c, auto header)
+    auto tcp = make_map_server("8993", [&](auto& c, auto header, auto wr)
     {
         auto [size, id] = Map32::DecodeHeader(header);
         std::vector<uint8_t>* ptarget;

@@ -9,13 +9,16 @@
 
 namespace mhttp
 {
-	template < typename C, typename on_message_t, typename on_error_t >class TcpWriter
+	class TcpWriter
 	{
-		on_message_t OnMessage;
+		using C = sock_t;
+		on_write_t OnMessage;
 		on_error_t OnError;
 
 	public:
-		TcpWriter(on_message_t _on_message_t, on_error_t _on_error_t, ThreadHub& pool = Threads())
+		TcpWriter() {}
+
+		TcpWriter(on_write_t _on_message_t, on_error_t _on_error_t, ThreadHub& pool = Threads())
 			: OnError(_on_error_t)
 			, OnMessage(_on_message_t)
 		{
