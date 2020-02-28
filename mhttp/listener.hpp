@@ -51,7 +51,7 @@ namespace mhttp
 			type = _type;
 			options = _options;
 
-			pool.Async([&](bool & run)
+			pool.Async([&,multiplex](bool & run)
 			{
 				if(!server.Listen(port,options))
 					throw server.Error();

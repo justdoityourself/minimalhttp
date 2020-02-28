@@ -127,11 +127,11 @@ namespace mhttp
 			return true;
 		}
 
-		void ActivateMap(void* queue, gsl::span<uint8_t> m)
+		template < typename T > void ActivateMap(void* queue, const T& t)
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
-			*((gsl::span<uint8_t>*)queue) = m;
+			*((gsl::span<uint8_t>*)queue) = gsl::span<uint8_t>((uint8_t*)t.data(), t.size());
 		}
 
 		void* QueueMap()
@@ -143,11 +143,11 @@ namespace mhttp
 			return (void*)&maps.back();
 		}
 
-		void AsyncMap(gsl::span<uint8_t> m)
+		template < typename T > void AsyncMap(const T & t)
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
-			maps.push(m);
+			maps.push(gsl::span<uint8_t>((uint8_t*)t.data(),t.size()));
 		}
 	};
 }

@@ -152,6 +152,27 @@ namespace mhttp
 	public:
 		MsgConnection(const std::string& s) { Connect(s); }
 
+		template < typename T > void SendT(const T& t)
+		{
+			uint32_t size = (uint32_t)sizeof(T);
+			Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t)));
+			Write(gsl::span<uint8_t>((uint8_t*)&t, sizeof(T)));
+		}
+
+		template < typename T > T ReceiveT()
+		{
+			uint32_t size;
+			Read(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t)));
+
+			if (sizeof(T) != size)
+				throw std::runtime_error("Expected Struct not Sent");
+
+			T result;
+			Read(gsl::span<uint8_t>((uint8_t*)&result, sizeof(T)));
+
+			return result;
+		}
+
 		template < typename T > void SendMessage( const T & t)
 		{
 			uint32_t size = (uint32_t)t.size();

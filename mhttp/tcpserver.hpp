@@ -142,7 +142,7 @@ namespace mhttp
 		}
 	};
 
-	template < typename F > auto& make_tcp_server(const string_view port, F f, size_t threads = 1, ConnectionType type = ConnectionType::message, bool mplex = false)
+	template < typename F > auto& make_tcp_server(const string_view port, F f, size_t threads = 1, bool mplex = false, ConnectionType type = ConnectionType::message)
 	{
 		auto on_connect = [&](const auto& c) { return make_pair(true, true); };
 		auto on_disconnect = [&](const auto& c) {};
@@ -171,11 +171,55 @@ namespace mhttp
 
 	template < typename F > auto& make_map_server(const string_view port, F f, size_t threads = 1)
 	{
-		return make_tcp_server(port, f, threads, ConnectionType::map32, false);
+		auto on_connect = [&](const auto& c) { return make_pair(true, true); };
+		auto on_disconnect = [&](const auto& c) {};
+		auto on_error = [&](const auto& c) {};
+		auto on_write = [&](const auto& mc, const auto& c) {};
+
+		static TcpServer tcp(on_connect, on_disconnect, [&](auto* client, auto&& request, auto body, auto * mplex)
+		{
+			try
+			{
+				f(*client, std::move(request));
+			}
+			catch (...)
+			{
+				//Something went wrong. Let's shut this socket down.
+				client->reader_fault = true;
+				client->writer_fault = true;
+			}
+
+		}, on_error, on_write, { threads });
+
+		tcp.Open( (uint16_t) stoi(port.data()), "", ConnectionType::map32, false);
+
+		return tcp;
 	}
 
-	template < typename F > auto& make_writemap_server(const string_view port, F f, size_t threads = 1)
+	template < typename F > auto& make_halfmap_server(const string_view port, F f, size_t threads = 1, ConnectionType type = ConnectionType::writemap32)
 	{
-		return make_tcp_server(port, f, threads, ConnectionType::writemap32, true);
+		auto on_connect = [&](const auto& c) { return make_pair(true, true); };
+		auto on_disconnect = [&](const auto& c) {};
+		auto on_error = [&](const auto& c) {};
+		auto on_write = [&](const auto& mc, const auto& c) {};
+
+		static TcpServer tcp(on_connect, on_disconnect, [&](auto* client, auto&& request, auto body, auto * mplex)
+		{
+			try
+			{
+				f(*client, std::move(request),mplex);
+			}
+			catch (...)
+			{
+				//Something went wrong. Let's shut this socket down.
+				client->reader_fault = true;
+				client->writer_fault = true;
+			}
+
+		}, on_error, on_write, { threads });
+
+		tcp.Open( (uint16_t) stoi(port.data()), "", ConnectionType::writemap32, true);
+
+		return tcp;
 	}
 }

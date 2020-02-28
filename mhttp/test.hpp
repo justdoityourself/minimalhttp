@@ -15,6 +15,57 @@
 using namespace mhttp;
 using namespace d8u;
 
+TEST_CASE("Threaded MultiPlex HALFMAP", "[mhttp::]")
+{
+    constexpr auto lim = 100;
+
+    static std::array<std::string, lim> buffers;
+
+    size_t msgc = 0;
+    for (auto& s : buffers)
+        s = std::to_string(msgc++) + "THIS IS A MESSAGE";
+
+    auto& tcp = make_halfmap_server("8993", [&](auto& c, auto header, auto reply)
+    {
+        uint32_t dx = *(uint32_t*)header.data();
+        c.ActivateMap(reply,buffers[dx]);
+    }, 4);
+
+    Threads().Delay(1000);
+
+    std::atomic<size_t> valid = 0;
+
+    {
+        MsgConnection c("127.0.0.1:8993");
+
+        std::thread writer([&]() 
+        {
+            uint32_t dx = 0;
+            for (auto& s : buffers)
+                c.SendT(dx++);
+        });
+
+        std::thread reader([&]()
+        {
+            uint32_t dx = 0;
+            for (auto& s : buffers)
+            {
+                auto result = c.ReceiveMessage();
+
+                if (std::equal(result.begin(), result.end(), buffers[dx++].begin())) 
+                    valid++;
+            }
+        });
+
+        writer.join();
+        reader.join();
+    }
+
+    CHECK(valid == lim);
+
+    tcp.Shutdown();
+}
+
 TEST_CASE("Simple TCP", "[mhttp::]")
 {
     auto& tcp = make_tcp_server("8999", [&](auto& c, auto message)
@@ -23,6 +74,8 @@ TEST_CASE("Simple TCP", "[mhttp::]")
     });
 
     {
+        Threads().Delay(1000);
+
         MsgConnection c("127.0.0.1:8999");
 
         auto message = std::string_view("THIS IS A MESSAGE");
@@ -120,6 +173,8 @@ TEST_CASE("Threaded Non-multiplexed TCP", "[mhttp::]")
     {
         c.AsyncWrite(std::move(message));
     },4);
+
+    Threads().Delay(1000);
 
     std::array<std::string, lim> buffers;
 
@@ -222,6 +277,8 @@ TEST_CASE("Threaded Non-multiplexed MAP", "[mhttp::]")
         c.Read(*ptarget);
         c.AsyncMap(*ptarget);
     }, 4);
+
+    Threads().Delay(1000);
 
     std::array<std::string, lim> buffers;
 
