@@ -68,6 +68,9 @@
     <ClInclude Include="mhttp\async.hpp">
       <Filter>mhttp</Filter>
     </ClInclude>
+    <ClInclude Include="mhttp\client.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />

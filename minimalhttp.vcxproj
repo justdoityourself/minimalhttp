@@ -216,6 +216,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mhttp\async.hpp" />
+    <ClInclude Include="mhttp\client.hpp" />
     <ClInclude Include="mhttp\common.hpp" />
     <ClInclude Include="mhttp\connection.hpp" />
     <ClInclude Include="mhttp\connections.hpp" />

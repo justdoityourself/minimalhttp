@@ -33,43 +33,9 @@ namespace mhttp
 		std::chrono::high_resolution_clock::time_point last_message  = std::chrono::high_resolution_clock::now();
 	};
 
-	template < typename T > class BufferedConnection : public BasicConnection<T>
+	class ThreadBase
 	{
 	public:
-		bool multiplex = false;
-		bool Multiplex() { return multiplex; }
-
-		BufferedConnection() {}
-
-		BufferedConnection(T &c, TcpAddress &a, ConnectionType t,uint32_t _uid)
-		{
-			Init(c, a, t, _uid);
-		}
-
-		void Init(T& c, TcpAddress& a, ConnectionType t, uint32_t _uid)
-		{
-			BasicConnection<T>::address = a;
-			BasicConnection<T>::SetConnection(c);
-			BasicConnection<T>::uid = _uid;
-			BasicConnection<T>::type = t;
-		}
-
-		bool ReadLock() { return read_lock; }
-
-		bool read_lock = false;
-		size_t read_offset = 0;
-		std::vector<uint8_t> read_buffer;
-
-		size_t read_count = 0;
-		size_t read_bytes = 0;
-
-		size_t write_offset = 0;
-		std::vector<uint8_t> write_buffer;
-		gsl::span<uint8_t> map;
-
-		size_t write_count = 0;
-		size_t write_bytes = 0;
-
 		std::mutex ql;
 		std::queue<std::vector<uint8_t>> queue;
 		std::queue<gsl::span<uint8_t>> maps;
@@ -97,7 +63,7 @@ namespace mhttp
 			*((std::vector<uint8_t>*)queue) = std::move(v);
 		}
 
-		void * QueueWrite()
+		void* QueueWrite()
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
@@ -106,14 +72,14 @@ namespace mhttp
 			return (void*)&queue.back();
 		}
 
-		void AsyncWrite(std::vector<uint8_t> && v)
+		void AsyncWrite(std::vector<uint8_t>&& v)
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
 			queue.push(std::move(v));
 		}
 
-		bool TryMap(gsl::span<uint8_t> & m)
+		bool TryMap(gsl::span<uint8_t>& m)
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
@@ -140,17 +106,75 @@ namespace mhttp
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
-			maps.push(gsl::span<uint8_t>((uint8_t*)nullptr,(size_t)0));
+			maps.push(gsl::span<uint8_t>((uint8_t*)nullptr, (size_t)0));
 
 			return (void*)&maps.back();
 		}
 
-		template < typename T > void AsyncMap(const T & t)
+		template < typename T > void AsyncMap(const T& t)
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
-			maps.push(gsl::span<uint8_t>((uint8_t*)t.data(),t.size()));
+			maps.push(gsl::span<uint8_t>((uint8_t*)t.data(), t.size()));
 		}
+	};
+
+	template < typename T > class BufferedConnection : public BasicConnection<T> , public ThreadBase
+	{
+	public:
+		bool multiplex = false;
+		bool Multiplex() { return multiplex; }
+
+		BufferedConnection() {}
+
+		BufferedConnection(T &c, TcpAddress &a, ConnectionType t,uint32_t _uid)
+		{
+			Init(c, a, t, _uid);
+		}
+
+		void Init(T& c, TcpAddress& a, ConnectionType t, uint32_t _uid)
+		{
+			BasicConnection<T>::address = a;
+			BasicConnection<T>::SetConnection(c);
+			BasicConnection<T>::uid = _uid;
+			BasicConnection<T>::type = t;
+		}
+
+		BufferedConnection(std::string_view host, ConnectionType type)
+		{
+			Connect(host, type);
+		}
+
+		void Connect(std::string_view host, ConnectionType type)
+		{
+			T c;
+			TcpAddress a;
+
+			EnableNetworking();
+			if (!c.Connect(host))
+				return;
+
+			Init(c, a, type, 15);
+			c.Release();
+		}
+
+		bool ReadLock() { return read_lock; }
+
+		bool read_lock = false;
+		size_t read_offset = 0;
+		std::vector<uint8_t> read_buffer;
+
+		size_t read_count = 0;
+		size_t read_bytes = 0;
+
+		size_t write_offset = 0;
+		std::vector<uint8_t> write_buffer;
+		gsl::span<uint8_t> map;
+
+		size_t write_count = 0;
+		size_t write_bytes = 0;
+
+		
 	};
 
 	auto p1_t = std::placeholders::_1;

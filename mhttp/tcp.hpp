@@ -150,6 +150,8 @@ namespace mhttp
 	class MsgConnection : public TcpConnection
 	{
 	public:
+		MsgConnection() {}
+
 		MsgConnection(const std::string& s) { Connect(s); }
 
 		template < typename T > void SendT(const T& t)

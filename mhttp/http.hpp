@@ -23,20 +23,7 @@ namespace mhttp
 
 		HttpConnection(std::string_view host)
 		{
-			Connect(host);
-		}
-
-		void Connect(std::string_view host)
-		{
-			TcpConnection c;
-			TcpAddress a;
-
-			EnableNetworking();
-			if (!c.Connect(host))
-				return;
-
-			sock_t::Init(c, a, ConnectionType::http, 15);
-			c.Release();
+			sock_t::Connect(host, ConnectionType::http);
 		}
 
 		template < typename T, typename ... t_args > static std::vector<uint8_t> FormatHttpResponse(std::string_view status, const T & contents, t_args...headers)

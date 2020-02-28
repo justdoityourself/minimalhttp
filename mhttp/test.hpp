@@ -9,11 +9,104 @@
 
 #include "tcp.hpp"
 #include "http.hpp"
+#include "client.hpp"
 
 #include "d8u/string_switch.hpp"
 
 using namespace mhttp;
 using namespace d8u;
+
+TEST_CASE("Threaded Client Async", "[mhttp::]")
+{
+    constexpr auto lim = 100;
+
+    static std::array<std::string, lim> buffers;
+
+    size_t msgc = 0;
+    for (auto& s : buffers)
+        s = std::to_string(msgc++) + "THIS IS A MESSAGE";
+
+    auto tcp = make_halfmap_server("8993", [&](auto& c, auto header, auto reply)
+    {
+        uint32_t dx = *(uint32_t*)header.data();
+        c.ActivateMap(reply, buffers[dx]);
+    }, 4);
+
+    Threads().Delay(1000);
+
+    {
+        std::atomic<size_t> valid = 0;
+        std::atomic<size_t> reads = 0;
+
+        EventClient< BufferedConnection<MsgConnection> > c("127.0.0.1:8993", ConnectionType::message);
+
+        uint32_t dx = 0;
+        for (auto& s : buffers)
+            c.AsyncWriteCallbackT(dx++, [&](auto result,auto b) 
+            {
+                static auto ix = 0;
+
+                if (std::equal(result.begin(), result.end(), buffers[ix++].begin()))
+                    valid++;
+
+                reads++;
+            });
+
+        while (reads < dx)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        CHECK(valid == lim);
+    }
+
+    tcp.Shutdown();
+}
+
+TEST_CASE("Threaded Client Async Reads", "[mhttp::]")
+{
+    constexpr auto lim = 100;
+
+    static std::array<std::string, lim> buffers;
+
+    size_t msgc = 0;
+    for (auto& s : buffers)
+        s = std::to_string(msgc++) + "THIS IS A MESSAGE";
+
+    auto tcp = make_halfmap_server("8993", [&](auto& c, auto header, auto reply)
+    {
+        uint32_t dx = *(uint32_t*)header.data();
+        c.ActivateMap(reply, buffers[dx]);
+    }, 4);
+
+    Threads().Delay(1000);
+
+    {
+        std::atomic<size_t> valid = 0;
+        std::atomic<size_t> reads = 0;
+
+        ThreadedClient< BufferedConnection<MsgConnection> > c("127.0.0.1:8993", ConnectionType::message, 
+            [&](auto result, auto b)
+            {
+                static auto dx = 0;
+
+                if (std::equal(result.begin(), result.end(), buffers[dx++].begin()))
+                    valid++;
+
+                reads++;
+            },false);
+
+        uint32_t dx = 0;
+        for (auto& s : buffers)
+            c.SendT(dx++);
+
+        while(reads < dx)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        CHECK(valid == lim);
+    }
+
+    tcp.Shutdown();
+}
+
 
 TEST_CASE("Threaded MultiPlex HALFMAP", "[mhttp::]")
 {

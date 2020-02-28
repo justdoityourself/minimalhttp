@@ -46,7 +46,11 @@ namespace mhttp
 							auto & i = * _i;
 
 							if(i.writer_fault) 
-								goto FAULT;
+							{
+								i.reader_fault = true;
+								faults++;
+								continue;
+							}
 
 							if (!i.Multiplex() && i.ReadLock())
 								continue; //If we do not have multiplexing enabled then stop reading while the current object is being handled.
@@ -56,26 +60,10 @@ namespace mhttp
 							if(priority < i.priority)
 								continue;
 
-							switch(i.type)
+							if(!DoRead(i,OnMessage,connection_idle))
 							{
-							case ConnectionType::http:
-								if( !Http::Read(i,OnMessage,connection_idle) ) 
-									goto FAULT;
-								break;
-							case ConnectionType::writemap32:
-							case ConnectionType::message:
-								if( !Message::Read(i,OnMessage,connection_idle) ) 
-									goto FAULT;
-								break;
-							case ConnectionType::map32:
-								if (!Map32::Read(i, OnMessage, connection_idle))
-									goto FAULT;
-								break;
-							default:
-							FAULT:
 								i.reader_fault = true;
 								faults++;
-								break;
 							}
 
 							if(!connection_idle)

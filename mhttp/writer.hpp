@@ -40,29 +40,10 @@ namespace mhttp
 						{
 							auto & i = * _i;
 
-							if(i.reader_fault) 
-								goto FAULT;
-
-							switch(i.type)
+							if (i.reader_fault || !DoWrite(i, OnMessage, idle))
 							{
-							case ConnectionType::http:
-								if(!Http::Write(i,OnMessage,idle)) 
-									goto FAULT;
-								break;
-							case ConnectionType::message:
-								if(!Message::Write(i,OnMessage,idle)) 
-									goto FAULT;
-								break;
-							case ConnectionType::writemap32:
-							case ConnectionType::map32:
-								if (!Map32::Write(i, OnMessage, idle))
-									goto FAULT;
-								break;
-							default:
-							FAULT:
 								i.writer_fault = true;
 								faults++;
-								break;
 							}
 						}
 

@@ -497,4 +497,43 @@ RETRY:
 			return true;
 		}
 	};
+
+
+	template <typename C, typename M> bool DoWrite(C &i, M m, bool & idle)
+	{
+		switch (i.type)
+		{
+		case ConnectionType::http:
+			return Http::Write(i, m, idle);
+
+		case ConnectionType::message:
+			return Message::Write(i, m, idle);
+
+		case ConnectionType::writemap32:
+		case ConnectionType::map32:
+			return Map32::Write(i, m, idle);
+
+		default:
+			return false;
+		}
+	}
+
+	template <typename C, typename M> bool DoRead(C& i, M m, bool& idle)
+	{
+		switch (i.type)
+		{
+		case ConnectionType::http:
+			return Http::Read(i, m, idle);
+
+		case ConnectionType::writemap32:
+		case ConnectionType::message:
+			return Message::Read(i, m, idle);
+
+		case ConnectionType::map32:
+			return Map32::Read(i, m, idle);
+
+		default:
+			return false;
+		}
+	}
 };

@@ -1,0 +1,145 @@
+/* Copyright (C) 2020 D8DATAWORKS - All Rights Reserved */
+
+#pragma once
+
+#include <thread>
+#include <chrono>
+#include <string_view>
+
+#include "connection.hpp"
+
+namespace mhttp
+{
+	template < typename T > class ThreadedClient : public T
+	{
+		std::thread reader;
+		std::thread writer;
+		bool run = true;
+
+		using callback_t = std::function<void( std::vector < uint8_t > , gsl::span<uint8_t> )>;
+		//std::queue< callback_t > read_events;
+
+		callback_t read;
+
+	public:
+		~ThreadedClient()
+		{
+			run = false;
+			reader.join();
+			writer.join();
+		}
+
+		ThreadedClient(string_view host, ConnectionType type, callback_t _read, bool writer_thread = true)
+			: T(host,type)
+			, read(_read)
+			, reader([&]()
+			{
+				while(run)
+				{
+					bool idle = false;
+					if (!DoRead(*this, [&](T & c, std::vector<uint8_t> v, gsl::span<uint8_t> s)
+						{
+							read(std::move(v), s);
+
+						} , idle))
+						break;
+
+					if(idle)
+						std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				}
+			})
+			, writer([&]()
+			{
+				if (!writer_thread)
+					return;
+
+				while (run)
+				{
+					bool idle = false;
+					if (!DoWrite(*this, [](auto&, size_t) {}, idle))
+						break;
+
+					if (idle)
+						std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				}
+			}) { T::Async(); T::multiplex = true; }
+	};
+
+	template < typename T > class EventClient : public T
+	{
+		std::thread reader;
+		std::thread writer;
+		bool run = true;
+
+		using callback_t = std::function<void( std::vector < uint8_t > , gsl::span<uint8_t> )>;
+		std::queue< callback_t > read_events;
+
+	public:
+		~EventClient()
+		{
+			run = false;
+			reader.join();
+			writer.join();
+		}
+
+		EventClient(string_view host, ConnectionType type)
+			: T(host,type)
+			, reader([&]()
+			{
+				while(run)
+				{
+					bool idle = false;
+					if (!DoRead(*this, [&](T & c, std::vector<uint8_t> v, gsl::span<uint8_t> s)
+						{
+							callback_t cb;
+
+							{
+								std::lock_guard<std::mutex> lock(T::ql);
+								cb = read_events.front();
+								read_events.pop();
+							}
+							
+							cb(std::move(v), s);
+
+						} , idle))
+						break;
+
+					if(idle)
+						std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				}
+			})
+			, writer([&]()
+			{
+				while (run)
+				{
+					bool idle = false;
+					if (!DoWrite(*this, [](auto&, size_t) {}, idle))
+						break;
+
+					if (idle)
+						std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				}
+			}) { T::Async(); }
+
+		template < typename F > void AsyncWriteCallback(std::vector<uint8_t>&& v, F f)
+		{
+			std::lock_guard<std::mutex> lock(T::ql);
+
+			T::queue.push(std::move(v));
+
+			read_events.push(f);
+		}
+
+		template < typename TT > void AsyncWriteCallbackT(const TT & t, callback_t f)
+		{
+			std::lock_guard<std::mutex> lock(T::ql);
+
+			std::vector<uint8_t> v(sizeof(TT));
+			std::copy(&t, &t + 1, v.begin());
+
+			T::queue.push(std::move(v));
+
+			read_events.push(f);
+		}
+	};
+}
