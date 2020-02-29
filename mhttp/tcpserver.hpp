@@ -36,7 +36,7 @@ namespace mhttp
 			size_t event_threads = 1;
 		};
 
-		TcpServer(on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, Options o = Options())
+		TcpServer(on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, Options o)
 			: OnAccept(a)
 			, OnMessageEvent(r)
 			, TcpWriter(w, e, *this)
@@ -49,7 +49,7 @@ namespace mhttp
 				, [](const auto& c) {}, r, [](const auto& c) {}
 				, [](const auto& mc, const auto& c) {}, o) {}
 
-		TcpServer(uint16_t port, ConnectionType type,on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, bool mplex = false, Options o = Options())
+		TcpServer(uint16_t port, ConnectionType type,on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, bool mplex, Options o)
 			: TcpServer(a,d,r,e,w,o) 
 		{ 
 			Open(port, "", type, mplex); 

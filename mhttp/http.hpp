@@ -160,7 +160,7 @@ namespace mhttp
 
 	using on_http_t = std::function < void(HttpConnection&, Http::Request, void*)>;
 
-	class HttpServer : private TcpServer
+	class HttpServer : public TcpServer
 	{
 		on_http_t on_request;
 	public:

@@ -159,7 +159,7 @@ namespace mhttp
 			std::vector<uint8_t> v(sizeof(TT));
 			std::copy(&t, &t + 1, v.begin());
 
-			AsyncWriteCallback(std::move(v), f);
+			AsyncWriteCallback(std::move(v), std::move(f));
 		}
 
 		std::pair<std::vector<uint8_t>,gsl::span<uint8_t>> AsyncWriteWait(std::vector<uint8_t>&& v)

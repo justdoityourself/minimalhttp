@@ -11,7 +11,7 @@ namespace mhttp
 {
 	using namespace std;
 
-	enum class ConnectionType { datagram, http, invalid, message, map32, writemap32 };
+	enum class ConnectionType { datagram, http, invalid, message, readmap32, map32, writemap32 };
 
 	typedef zed_net_address_t TcpAddress;
 

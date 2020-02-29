@@ -512,6 +512,7 @@ RETRY:
 		case ConnectionType::http:
 			return Http::Write(i, m, idle);
 
+		case ConnectionType::readmap32:
 		case ConnectionType::message:
 			return Message::Write(i, m, idle);
 
@@ -535,6 +536,7 @@ RETRY:
 		case ConnectionType::message:
 			return Message::Read(i, m, idle);
 
+		case ConnectionType::readmap32:
 		case ConnectionType::map32:
 			return Map32::Read(i, m, idle);
 
