@@ -74,6 +74,28 @@ namespace mhttp
 		std::queue< callback_t > read_events;
 
 	public:
+
+		void Flush()
+		{
+			while (read_events.size())
+				std::this_thread::sleep_for(std::chrono::milliseconds(300));
+		}
+
+		size_t Reads() { return T::read_count; }
+		size_t Writes() { return T::write_count; }
+
+		void WaitUntilReads(size_t target) 
+		{ 
+			while (Reads() < target)
+				std::this_thread::sleep_for(std::chrono::milliseconds(300));
+		}
+
+		void WaitUntilWrites(size_t target) 
+		{ 
+			while (Writes() < target)
+				std::this_thread::sleep_for(std::chrono::milliseconds(300));
+		}
+
 		~EventClient()
 		{
 			run = false;
@@ -123,16 +145,16 @@ namespace mhttp
 				}
 			}) { T::Async(); }
 
-		void AsyncWriteCallback(std::vector<uint8_t>&& v, callback_t f)
+		void AsyncWriteCallback(std::vector<uint8_t>&& v, callback_t &&f)
 		{
 			std::lock_guard<std::mutex> lock(T::ql);
 
 			T::queue.push(std::move(v));
 
-			read_events.push(f);
+			read_events.emplace(f);
 		}
 
-		template < typename TT > void AsyncWriteCallbackT(const TT & t, callback_t f)
+		template < typename TT > void AsyncWriteCallbackT(const TT & t, callback_t &&f)
 		{
 			std::vector<uint8_t> v(sizeof(TT));
 			std::copy(&t, &t + 1, v.begin());

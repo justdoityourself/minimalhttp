@@ -44,8 +44,10 @@ namespace mhttp
 					if(c.write_offset != c.write_buffer.size())
 						return true;
 
+					m(c, c.write_count);
+
+					c.write_count++;
 					c.write_bytes += c.write_buffer.size();
-					m(c, c.write_count++);
 
 					c.write_buffer = std::vector<uint8_t>();
 					c.write_offset = 0;
@@ -81,8 +83,10 @@ namespace mhttp
 					if (c.write_offset != c.write_buffer.size())
 						return true;
 
+					m(c, c.write_count);
+
+					c.write_count++;
 					c.write_bytes += c.write_buffer.size();
-					m(c, c.write_count++);
 
 					c.write_buffer = std::vector<uint8_t>();
 					c.write_offset = 0;
@@ -322,10 +326,10 @@ RETRY:
 								auto single = reset(message_size);
 								gsl::span<uint8_t> body(single.data() + start + 4, al);
 
+								m(c,std::move(single),body);
+
 								c.read_count++;
 								c.read_bytes += single.size();
-
-								m(c,std::move(single),body);
 
 								if (c.read_buffer.size())
 									goto RETRY; //Another request has been read and is waiting.
@@ -371,10 +375,10 @@ RETRY:
 					if(c.read_offset != c.read_buffer.size())
 						return true;
 
+					m( c, std::move(c.read_buffer) , gsl::span<uint8_t>(c.read_buffer) );
+
 					c.read_count++;
 					c.read_bytes += c.read_buffer.size();
-
-					m( c, std::move(c.read_buffer) , gsl::span<uint8_t>(c.read_buffer) );
 
 					c.read_offset = 0;
 
@@ -444,10 +448,10 @@ RETRY:
 					if (c.read_offset != c.read_buffer.size())
 						return true;
 
+					m(c, std::move(c.read_buffer), gsl::span<uint8_t>(c.read_buffer));
+
 					c.read_count++;
 					c.read_bytes += c.read_buffer.size();
-
-					m(c, std::move(c.read_buffer), gsl::span<uint8_t>(c.read_buffer));
 
 					c.read_offset = 0;
 
@@ -479,8 +483,10 @@ RETRY:
 					if (c.write_offset != c.map.size())
 						return true;
 
+					m(c, c.write_count);
+
+					c.write_count++;
 					c.write_bytes += c.map.size();
-					m(c, c.write_count++);
 
 					c.map = gsl::span<uint8_t>();
 					c.write_offset = 0;

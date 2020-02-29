@@ -102,9 +102,9 @@ namespace mhttp
 			return (_response.size()) ? Http::ParseResponse(std::move(_response), body) : Http::Response();
 		}
 
-		template < typename F, typename T, typename ... t_args > void RequestCallback(F f, std::string_view command, std::string_view path, const T& contents, t_args...headers)
+		template < typename F, typename T, typename ... t_args > void RequestCallback(F && f, std::string_view command, std::string_view path, const T& contents, t_args...headers)
 		{
-			AsyncWriteCallback(FormatHttpRequest(command, path, contents, headers...),[&](auto _response, auto body)
+			AsyncWriteCallback(FormatHttpRequest(command, path, contents, headers...),[f = std::move(f)](auto _response, auto body)
 			{
 				f((_response.size()) ? Http::ParseResponse(std::move(_response), body) : Http::Response());
 			});
@@ -120,25 +120,25 @@ namespace mhttp
 			return RequestWait("POST", path, contents, headers...);
 		}
 
-		template < typename F, typename ... t_args > void GetCallback(F f, std::string_view path, t_args...headers)
+		template < typename F, typename ... t_args > void GetCallback(F && f, std::string_view path, t_args...headers)
 		{
 			return RequestCallback(f, "GET", path, gsl::span<uint8_t>(), headers...);
 		}
 
-		template < typename F, typename T, typename ... t_args > void PostCallback(F f, std::string_view path, const T& contents, t_args...headers)
+		template < typename F, typename T, typename ... t_args > void PostCallback(F && f, std::string_view path, const T& contents, t_args...headers)
 		{
 			return RequestCallback(f,"POST", path, contents, headers...);
 		}
 	};
 
-	template < typename F > auto make_http_server(const string_view port, F f, size_t threads = 1, bool mplex = false)
+	template < typename F > auto make_http_server(const string_view port, F && f, size_t threads = 1, bool mplex = false)
 	{
 		auto on_connect = [](const auto& c) { return make_pair(true, true); };
 		auto on_disconnect = [](const auto& c) {};
 		auto on_error = [](const auto& c) {};
 		auto on_write = [](const auto& mc, const auto& c) {};
 
-		return TcpServer((uint16_t)stoi(port.data()), ConnectionType::http, on_connect, on_disconnect, [f](auto* _client, auto&& _request, auto body,auto * mplex)
+		return TcpServer((uint16_t)stoi(port.data()), ConnectionType::http, on_connect, on_disconnect, [f = std::move(f)](auto* _client, auto&& _request, auto body,auto * mplex)
 		{
 			//On Request:
 			//
