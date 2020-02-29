@@ -140,7 +140,7 @@ namespace mhttp
 			AsyncWriteCallback(std::move(v), f);
 		}
 
-		std::vector<uint8_t> AsyncWriteWait(std::vector<uint8_t>&& v)
+		std::pair<std::vector<uint8_t>,gsl::span<uint8_t>> AsyncWriteWait(std::vector<uint8_t>&& v)
 		{
 			bool ready = false;
 			std::vector<uint8_t> result;
@@ -162,7 +162,7 @@ namespace mhttp
 			while(!ready)
 				std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-			return std::make_pair(result,body);
+			return std::make_pair(std::move(result),body);
 		}
 
 		template < typename TT > std::vector<uint8_t> AsyncWriteWaitT(const TT& t)
