@@ -17,7 +17,6 @@ namespace mhttp
 		bool run = true;
 
 		using callback_t = std::function<void( std::vector < uint8_t > , gsl::span<uint8_t> )>;
-		//std::queue< callback_t > read_events;
 
 		callback_t read;
 
@@ -82,7 +81,7 @@ namespace mhttp
 			writer.join();
 		}
 
-		EventClient(string_view host, ConnectionType type)
+		EventClient(string_view host, ConnectionType type, bool writer_thread = true)
 			: T(host,type)
 			, reader([&]()
 			{
@@ -110,6 +109,9 @@ namespace mhttp
 			})
 			, writer([&]()
 			{
+				if (!writer_thread)
+					return;
+
 				while (run)
 				{
 					bool idle = false;
@@ -121,7 +123,7 @@ namespace mhttp
 				}
 			}) { T::Async(); }
 
-		template < typename F > void AsyncWriteCallback(std::vector<uint8_t>&& v, F f)
+		void AsyncWriteCallback(std::vector<uint8_t>&& v, callback_t f)
 		{
 			std::lock_guard<std::mutex> lock(T::ql);
 
@@ -132,14 +134,43 @@ namespace mhttp
 
 		template < typename TT > void AsyncWriteCallbackT(const TT & t, callback_t f)
 		{
-			std::lock_guard<std::mutex> lock(T::ql);
-
 			std::vector<uint8_t> v(sizeof(TT));
 			std::copy(&t, &t + 1, v.begin());
 
-			T::queue.push(std::move(v));
+			AsyncWriteCallback(std::move(v), f);
+		}
 
-			read_events.push(f);
+		std::vector<uint8_t> AsyncWriteWait(std::vector<uint8_t>&& v)
+		{
+			bool ready = false;
+			std::vector<uint8_t> result;
+			gsl::span<uint8_t> body;
+
+			{
+				std::lock_guard<std::mutex> lock(T::ql);
+
+				T::queue.push(std::move(v));
+
+				read_events.push([&](auto v, auto b) 
+				{
+					result = std::move(v);
+					body = b;
+					ready = true;
+				});
+			}
+
+			while(!ready)
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+			return std::make_pair(result,body);
+		}
+
+		template < typename TT > std::vector<uint8_t> AsyncWriteWaitT(const TT& t)
+		{
+			std::vector<uint8_t> v(sizeof(TT));
+			std::copy(&t, &t + 1, v.begin());
+
+			return AsyncWriteWait(v);
 		}
 	};
 }

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tcpserver.hpp"
+#include "client.hpp"
 
 #include "d8u/buffer.hpp"
 
@@ -21,9 +22,9 @@ namespace mhttp
 	public:
 		HttpConnection() {}
 
-		HttpConnection(std::string_view host)
+		HttpConnection(std::string_view host, ConnectionType type = ConnectionType::http)
 		{
-			sock_t::Connect(host, ConnectionType::http);
+			sock_t::Connect(host, type);
 		}
 
 		template < typename T, typename ... t_args > static std::vector<uint8_t> FormatHttpResponse(std::string_view status, const T & contents, t_args...headers)
@@ -84,6 +85,49 @@ namespace mhttp
 		template < typename T, typename ... t_args > auto Post(std::string_view path, const T & contents, t_args...headers)
 		{
 			return Request("POST", path, contents, headers...);
+		}
+	};
+
+	class EventHttp : public EventClient < HttpConnection >
+	{
+	public:
+		EventHttp(std::string_view host)
+			: EventClient < HttpConnection >(host, ConnectionType::http)
+		{ }
+
+		template < typename T, typename ... t_args > auto RequestWait(std::string_view command, std::string_view path, const T& contents, t_args...headers)
+		{
+			auto [_response, body] = AsyncWriteWait(FormatHttpRequest(command, path, contents, headers...));
+
+			return (_response.size()) ? Http::ParseResponse(std::move(_response), body) : Http::Response();
+		}
+
+		template < typename F, typename T, typename ... t_args > void RequestCallback(F f, std::string_view command, std::string_view path, const T& contents, t_args...headers)
+		{
+			AsyncWriteCallback(FormatHttpRequest(command, path, contents, headers...),[&](auto _response, auto body)
+			{
+				f((_response.size()) ? Http::ParseResponse(std::move(_response), body) : Http::Response());
+			});
+		}
+
+		template < typename ... t_args > auto GetWait(std::string_view path, t_args...headers)
+		{
+			return RequestWait("GET", path, gsl::span<uint8_t>(), headers...);
+		}
+
+		template < typename T, typename ... t_args > auto PostWait(std::string_view path, const T& contents, t_args...headers)
+		{
+			return RequestWait("POST", path, contents, headers...);
+		}
+
+		template < typename F, typename ... t_args > void GetCallback(F f, std::string_view path, t_args...headers)
+		{
+			return RequestCallback(f, "GET", path, gsl::span<uint8_t>(), headers...);
+		}
+
+		template < typename F, typename T, typename ... t_args > void PostCallback(F f, std::string_view path, const T& contents, t_args...headers)
+		{
+			return RequestCallback(f,"POST", path, contents, headers...);
 		}
 	};
 
