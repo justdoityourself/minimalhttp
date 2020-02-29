@@ -25,7 +25,7 @@ namespace mhttp
 
 		template < typename C, typename T > static bool Initialize(C& c, T type) { return true; } //Protocol based on connect details.
 
-		template < typename C, typename M > static bool WriteMessage(C & c, M m,bool & idle)
+		template < typename C, typename M > static bool WriteMessage(C & c, M m,bool & idle, uint32_t bias = 0)
 		{
 			while(true)
 			{
@@ -56,7 +56,7 @@ namespace mhttp
 				if(!c.TryWrite(c.write_buffer))
 					break;
 
-				uint32_t size = (uint32_t)c.write_buffer.size();
+				uint32_t size = (uint32_t)c.write_buffer.size() - bias;
 				if (sizeof(uint32_t) != c.Send(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))))
 					return false;
 			}
@@ -502,6 +502,11 @@ RETRY:
 
 			return true;
 		}
+
+		template < typename C, typename M > static bool ClientWrite(C& c, M m, bool& idle)
+		{
+			return Common::WriteMessage(c, m, idle, 32);
+		}
 	};
 
 
@@ -520,6 +525,9 @@ RETRY:
 		case ConnectionType::map32:
 			return Map32::Write(i, m, idle);
 
+		case ConnectionType::map32client:
+			return Map32::ClientWrite(i, m, idle);
+
 		default:
 			return false;
 		}
@@ -532,6 +540,7 @@ RETRY:
 		case ConnectionType::http:
 			return Http::Read(i, m, idle);
 
+		case ConnectionType::map32client:
 		case ConnectionType::writemap32:
 		case ConnectionType::message:
 			return Message::Read(i, m, idle);

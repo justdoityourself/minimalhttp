@@ -38,7 +38,7 @@ TEST_CASE("Threaded Client Async", "[mhttp::]")
         std::atomic<size_t> valid = 0;
         std::atomic<size_t> reads = 0;
 
-        EventClient< BufferedConnection<MsgConnection> > c("127.0.0.1:8993", ConnectionType::message);
+        EventClientT< BufferedConnection<MsgConnection> > c("127.0.0.1:8993", ConnectionType::message);
 
         uint32_t dx = 0;
         for (auto& s : buffers)
@@ -83,7 +83,7 @@ TEST_CASE("Threaded Client Async Reads", "[mhttp::]")
         std::atomic<size_t> valid = 0;
         std::atomic<size_t> reads = 0;
 
-        ThreadedClient< BufferedConnection<MsgConnection> > c("127.0.0.1:8993", ConnectionType::message, 
+        ThreadedClientT < BufferedConnection<MsgConnection> > c("127.0.0.1:8993", ConnectionType::message, 
             [&](auto result, auto b)
             {
                 static auto dx = 0;

@@ -157,7 +157,7 @@ namespace mhttp
 		template < typename TT > void AsyncWriteCallbackT(const TT & t, callback_t &&f)
 		{
 			std::vector<uint8_t> v(sizeof(TT));
-			std::copy(&t, &t + 1, v.begin());
+			std::copy((uint8_t*)&t, (uint8_t *)(&t + 1), v.begin());
 
 			AsyncWriteCallback(std::move(v), std::move(f));
 		}
