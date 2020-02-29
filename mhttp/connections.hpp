@@ -14,13 +14,13 @@ namespace mhttp
 	public:
 		TcpConnections() {}
 
-		TcpConnections(on_disconnect_t _on_disconnect_t, ThreadHub& pool = Threads())
+		TcpConnections(on_disconnect_t _on_disconnect_t, ThreadHub& pool)
 			: OnDisconnect(_on_disconnect_t)
 		{
 			Pump(pool);
 		}
 
-		void Pump(ThreadHub& pool = Threads())
+		void Pump(ThreadHub& pool)
 		{
 			pool.Async([&](bool & run)
 			{

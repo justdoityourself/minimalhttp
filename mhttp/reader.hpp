@@ -18,14 +18,14 @@ namespace mhttp
 	public:
 		TcpReader() {}
 
-		TcpReader(io_t _on_message_t, on_error_t _on_error_t, ThreadHub& pool = Threads())
+		TcpReader(io_t _on_message_t, on_error_t _on_error_t, ThreadHub& pool)
 			: OnError(_on_error_t)
 			, OnMessage(_on_message_t)
 		{
 			Pump(pool);
 		}
 
-		void Pump(ThreadHub& pool = Threads())
+		void Pump(ThreadHub& pool)
 		{
 			pool.Async([&](bool & run)
 			{

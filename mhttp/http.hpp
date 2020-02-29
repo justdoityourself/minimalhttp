@@ -88,11 +88,11 @@ namespace mhttp
 		}
 	};
 
-	class EventHttp : public EventClient < HttpConnection >
+	class EventHttp : public EventClientT < HttpConnection >
 	{
 	public:
 		EventHttp(std::string_view host)
-			: EventClient < HttpConnection >(host, ConnectionType::http)
+			: EventClientT < HttpConnection >(host, ConnectionType::http)
 		{ }
 
 		template < typename T, typename ... t_args > auto RequestWait(std::string_view command, std::string_view path, const T& contents, t_args...headers)

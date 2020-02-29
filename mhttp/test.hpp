@@ -32,7 +32,7 @@ TEST_CASE("Threaded Client Async", "[mhttp::]")
         c.ActivateMap(reply, buffers[dx]);
     }, 4);
 
-    Threads().Delay(1000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     {
         std::atomic<size_t> valid = 0;
@@ -77,7 +77,7 @@ TEST_CASE("Threaded Client Async Reads", "[mhttp::]")
         c.ActivateMap(reply, buffers[dx]);
     }, 4);
 
-    Threads().Delay(1000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     {
         std::atomic<size_t> valid = 0;
@@ -124,7 +124,7 @@ TEST_CASE("Threaded MultiPlex HALFMAP", "[mhttp::]")
         c.ActivateMap(reply,buffers[dx]);
     }, 4);
 
-    Threads().Delay(1000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     std::atomic<size_t> valid = 0;
 
@@ -167,7 +167,7 @@ TEST_CASE("Simple TCP", "[mhttp::]")
     });
 
     {
-        Threads().Delay(1000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
         MsgConnection c("127.0.0.1:8999");
 
@@ -228,7 +228,7 @@ TEST_CASE("Simple Http Server", "[mhttp::]")
     });
 
     {
-        Threads().Delay(1000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
         HttpConnection c("127.0.0.1:8032");
 
@@ -267,7 +267,7 @@ TEST_CASE("Threaded Non-multiplexed TCP", "[mhttp::]")
         c.AsyncWrite(std::move(message));
     },4);
 
-    Threads().Delay(1000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     std::array<std::string, lim> buffers;
 
@@ -321,7 +321,7 @@ TEST_CASE("Threaded Http Server", "[mhttp::]")
         }
     });
 
-    Threads().Delay(1000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     std::array<std::string, lim> buffers;
 
@@ -371,7 +371,7 @@ TEST_CASE("Threaded Non-multiplexed MAP", "[mhttp::]")
         c.AsyncMap(*ptarget);
     }, 4);
 
-    Threads().Delay(1000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     std::array<std::string, lim> buffers;
 

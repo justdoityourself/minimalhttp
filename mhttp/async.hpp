@@ -30,10 +30,20 @@ namespace mhttp
 		void Signal(){ run = false; }
 		void Start(){ run = true; }
 
-		void Wait()
+		void Wait(bool rethrow = false)
 		{
-			for(auto & i : threads)
-				i.get();
+			for (auto& i : threads)
+			{
+				try
+				{
+					i.get();
+				}
+				catch (const std::exception & exc)
+				{
+					std::cerr << exc.what();
+					if (rethrow) throw;
+				}
+			}
 
 			threads.clear();
 
@@ -52,7 +62,7 @@ namespace mhttp
 			{
 				try 
 				{ 
-					Wait(); 
+					Wait(true); 
 					active = false;
 				}
 				catch(const char * m) { f( m ); }
@@ -126,9 +136,6 @@ namespace mhttp
 		std::condition_variable cv;
 	};
 
-	ThreadHub& Threads() { static ThreadHub hub; return hub; }
-
-	
 
 	template < typename T > class EventHandler : public ThreadQueue<T>
 	{
@@ -138,11 +145,11 @@ namespace mhttp
 		t_handler handler;
 	public:
 
-		EventHandler(t_handler h,ThreadHub & _threads= Threads()) 
+		EventHandler(t_handler h,ThreadHub & _threads) 
 			: handler(h)
 			, threads(_threads) {}
 
-		EventHandler(size_t c, t_handler h, ThreadHub & _threads= Threads()) 
+		EventHandler(size_t c, t_handler h, ThreadHub & _threads) 
 			: handler(h)
 			, threads(_threads) 
 		{

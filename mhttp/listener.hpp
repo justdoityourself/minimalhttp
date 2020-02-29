@@ -33,7 +33,7 @@ namespace mhttp
 		TcpListener(listen_t _on_accept)
 			: OnAccept(_on_accept) {}
 
-		TcpListener(uint16_t _port, const std::string & options, ConnectionType _type, listen_t _on_accept, bool multiplex, ThreadHub& pool = Threads())
+		TcpListener(uint16_t _port, const std::string & options, ConnectionType _type, listen_t _on_accept, bool multiplex, ThreadHub& pool )
 			: OnAccept(_on_accept)
 		{
 			Listen(_port,options,_type,multiplex,pool);
@@ -44,7 +44,7 @@ namespace mhttp
 			server.Close();
 		}
 
-		void Listen(uint16_t _port,const std::string _options, ConnectionType _type, bool multiplex, ThreadHub& pool = Threads())
+		void Listen(uint16_t _port,const std::string _options, ConnectionType _type, bool multiplex, ThreadHub& pool)
 		{
 			EnableNetworking();
 			port = _port;
@@ -54,7 +54,7 @@ namespace mhttp
 			pool.Async([&,multiplex](bool & run)
 			{
 				if(!server.Listen(port,options))
-					throw server.Error();
+					throw std::runtime_error(server.Error());
 
 				while(run)
 				{
@@ -65,7 +65,7 @@ namespace mhttp
 						if (!server.Valid())
 							break; //Socket was closed gracefully.
 						else
-							throw server.Error();
+							throw std::runtime_error(server.Error());
 					}
 
 

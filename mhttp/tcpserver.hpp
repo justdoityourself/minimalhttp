@@ -87,11 +87,11 @@ namespace mhttp
 		void Connect(const std::string& host, ConnectionType type)
 		{
 			TcpConnection c;
-			TcpAddress address;
+			TcpAddress address = { 0, 0 };
 
 			EnableNetworking();
 			if (!c.Connect(host))
-				throw c.Error();
+				throw std::runtime_error(c.Error());
 
 			DoAccept(&c, address, type,15,false);
 			c.Release();

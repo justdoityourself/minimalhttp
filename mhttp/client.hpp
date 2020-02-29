@@ -10,7 +10,7 @@
 
 namespace mhttp
 {
-	template < typename T > class ThreadedClient : public T
+	template < typename T > class ThreadedClientT : public T
 	{
 		std::thread reader;
 		std::thread writer;
@@ -21,14 +21,14 @@ namespace mhttp
 		callback_t read;
 
 	public:
-		~ThreadedClient()
+		~ThreadedClientT()
 		{
 			run = false;
 			reader.join();
 			writer.join();
 		}
 
-		ThreadedClient(string_view host, ConnectionType type, callback_t _read, bool writer_thread = true)
+		ThreadedClientT(string_view host, ConnectionType type, callback_t _read, bool writer_thread = true)
 			: T(host,type)
 			, read(_read)
 			, reader([&]()
@@ -64,7 +64,7 @@ namespace mhttp
 			}) { T::Async(); T::multiplex = true; }
 	};
 
-	template < typename T > class EventClient : public T
+	template < typename T > class EventClientT : public T
 	{
 		std::thread reader;
 		std::thread writer;
@@ -96,14 +96,14 @@ namespace mhttp
 				std::this_thread::sleep_for(std::chrono::milliseconds(300));
 		}
 
-		~EventClient()
+		~EventClientT()
 		{
 			run = false;
 			reader.join();
 			writer.join();
 		}
 
-		EventClient(string_view host, ConnectionType type, bool writer_thread = true)
+		EventClientT(string_view host, ConnectionType type, bool writer_thread = true)
 			: T(host,type)
 			, reader([&]()
 			{
@@ -195,4 +195,7 @@ namespace mhttp
 			return AsyncWriteWait(v);
 		}
 	};
+
+	using ThreadedClient = ThreadedClientT< sock_t >;
+	using EventClient = EventClientT< sock_t >;
 }
