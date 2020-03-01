@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <iostream>
 #include <future>
 #include <list>
 #include <queue>
