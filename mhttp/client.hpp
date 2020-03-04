@@ -187,12 +187,12 @@ namespace mhttp
 			return std::make_pair(std::move(result),body);
 		}
 
-		template < typename TT > std::vector<uint8_t> AsyncWriteWaitT(const TT& t)
+		template < typename TT > auto AsyncWriteWaitT(const TT& t)
 		{
 			std::vector<uint8_t> v(sizeof(TT));
-			std::copy(&t, &t + 1, v.begin());
+			std::copy((uint8_t*)&t, (uint8_t*)(&t + 1), v.begin());
 
-			return AsyncWriteWait(v);
+			return AsyncWriteWait(std::move(v));
 		}
 	};
 

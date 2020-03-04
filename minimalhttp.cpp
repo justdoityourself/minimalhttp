@@ -43,6 +43,10 @@ int main(int argc, char* argv[])
 
     try
     {
+        if (!parse(argc, argv, cli)) cout << make_man_page(cli, argv[0]);
+        else
+        {
+        }
     }
     catch (const exception & ex)
     {
