@@ -60,6 +60,26 @@ namespace mhttp
 			AsyncWrite(FormatHttpResponse("404 Not Found", gsl::span<uint8_t>(), headers...));
 		}
 
+		template < typename ... t_args > void Http200A(void* queue, t_args...headers)
+		{
+			ActivateWrite(queue,FormatHttpResponse("200 OK", gsl::span<uint8_t>(), headers...));
+		}
+
+		template < typename T, typename ... t_args > void ResponseA(void* queue, std::string_view status, const T& contents, t_args...headers)
+		{
+			ActivateWrite(queue, FormatHttpResponse(status, contents, headers...));
+		}
+
+		template < typename ... t_args > void Http400A(void* queue, t_args...headers)
+		{
+			ActivateWrite(queue, FormatHttpResponse("400 Bad Request", gsl::span<uint8_t>(), headers...));
+		}
+
+		template < typename ... t_args > void Http404A(void* queue, t_args...headers)
+		{
+			ActivateWrite(queue, FormatHttpResponse("404 Not Found", gsl::span<uint8_t>(), headers...));
+		}
+
 
 		//Client Functions:
 		//
@@ -181,10 +201,10 @@ namespace mhttp
 
 			},o) { }
 
-		HttpServer(uint16_t port, on_http_t _req_cb, TcpServer::Options o = TcpServer::Options())
+		HttpServer(uint16_t port, on_http_t _req_cb, bool mplex=false, TcpServer::Options o = TcpServer::Options())
 			: HttpServer(_req_cb, o)
 		{
-			Open(port);
+			Open(port,"",mplex);
 		}
 
 		void Open(uint16_t port, const std::string& options="", bool mplex=false)
