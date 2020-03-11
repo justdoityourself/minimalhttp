@@ -35,13 +35,13 @@ namespace mhttp
 			{
 				while(run)
 				{
-					bool idle = false;
+					bool idle = true;
 					if (!DoRead(*this, [&](T & c, std::vector<uint8_t> v, gsl::span<uint8_t> s)
-						{
-							read(std::move(v), s);
+					{
+						read(std::move(v), s);
 
-						} , idle))
-						break;
+					} , idle))
+					break;
 
 					if(idle)
 						std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -54,7 +54,7 @@ namespace mhttp
 
 				while (run)
 				{
-					bool idle = false;
+					bool idle = true;
 					if (!DoWrite(*this, [](auto&, size_t) {}, idle))
 						break;
 
@@ -109,21 +109,21 @@ namespace mhttp
 			{
 				while(run)
 				{
-					bool idle = false;
+					bool idle = true;
 					if (!DoRead(*this, [&](T & c, std::vector<uint8_t> v, gsl::span<uint8_t> s)
+					{
+						callback_t cb;
+
 						{
-							callback_t cb;
-
-							{
-								std::lock_guard<std::mutex> lock(T::ql);
-								cb = read_events.front();
-								read_events.pop();
-							}
+							std::lock_guard<std::mutex> lock(T::ql);
+							cb = read_events.front();
+							read_events.pop();
+						}
 							
-							cb(std::move(v), s);
+						cb(std::move(v), s);
 
-						} , idle))
-						break;
+					} , idle))
+					break;
 
 					if(idle)
 						std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -136,7 +136,7 @@ namespace mhttp
 
 				while (run)
 				{
-					bool idle = false;
+					bool idle = true;
 					if (!DoWrite(*this, [](auto&, size_t) {}, idle))
 						break;
 
