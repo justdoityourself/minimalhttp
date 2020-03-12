@@ -49,7 +49,7 @@ namespace mhttp
 
 				//Todo clean up reads, todo reconnect?
 
-				std::cout << "ThreadedClientT Reader EOT" << std::endl;
+				if (run) std::cout << "ThreadedClientT Reader EOT" << std::endl;
 			})
 			, writer([&]()
 			{
@@ -68,7 +68,7 @@ namespace mhttp
 
 				//Todo clean up write, todo reconnect?
 
-				std::cout << "ThreadedClientT Writer EOT" << std::endl;
+				if (run) std::cout << "ThreadedClientT Writer EOT" << std::endl;
 			}) { T::Async(); T::multiplex = true; }
 	};
 
@@ -139,7 +139,7 @@ namespace mhttp
 
 				//Todo clean up reads, todo reconnect?
 
-				std::cout << "EventClientT Reader EOT" << std::endl;
+				if(run) std::cout << "EventClientT Reader EOT" << std::endl;
 			})
 			, writer([&]()
 			{
@@ -158,7 +158,7 @@ namespace mhttp
 
 				//Todo clean up writes, todo reconnect?
 
-				std::cout << "EventClientT Writer EOT" << std::endl;
+				if (run) std::cout << "EventClientT Writer EOT" << std::endl;
 			}) { T::Async(); }
 
 		void AsyncWriteCallback(std::vector<uint8_t>&& v, callback_t &&f)
