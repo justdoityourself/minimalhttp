@@ -47,9 +47,6 @@ namespace mhttp
 			if (!queue.size())
 				return false;
 
-			if (!queue.front().size())
-				return false;
-
 			v = std::move(queue.front());
 			queue.pop();
 
@@ -86,9 +83,6 @@ namespace mhttp
 			if (!maps.size())
 				return false;
 
-			if (!maps.front().size())
-				return false;
-
 			m = maps.front();
 			maps.pop();
 
@@ -116,6 +110,11 @@ namespace mhttp
 			std::lock_guard<std::mutex> lock(ql);
 
 			maps.push(gsl::span<uint8_t>((uint8_t*)t.data(), t.size()));
+		}
+
+		bool Idle()
+		{
+			return queue.size() + maps.size() == 0;
 		}
 	};
 
@@ -179,7 +178,31 @@ namespace mhttp
 		size_t write_count = 0;
 		size_t write_bytes = 0;
 
-		
+		void Ping()
+		{
+			switch (BasicConnection<T>::type)
+			{
+			case ConnectionType::writemap32:
+			case ConnectionType::map32:
+				AsyncMap(gsl::span<uint8_t>()); break;
+			case ConnectionType::readmap32:
+			case ConnectionType::message:
+				AsyncWrite(std::vector<uint8_t>()); break;
+			}
+		}
+
+		void Disconnect()
+		{
+			std::vector<uint8_t> _null = { 0,0,0,0 };
+			switch (BasicConnection<T>::type)
+			{
+			case ConnectionType::writemap32:
+			case ConnectionType::map32:
+			case ConnectionType::readmap32:
+			case ConnectionType::message:
+				BasicConnection<T>::Write(_null); break;
+			}
+		}
 	};
 
 	auto p1_t = std::placeholders::_1;

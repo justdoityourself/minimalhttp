@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <chrono>
+
 #include "async.hpp"
 #include "common.hpp"
 #include "tcp.hpp"
@@ -36,14 +38,23 @@ namespace mhttp
 					{
 						std::lock_guard<std::mutex> _l(lock);
 
+						auto now = std::chrono::high_resolution_clock::now();
+
 						for(auto _i : connections)
 						{
+							bool connection_idle = true;
 							auto & i = * _i;
 
-							if (i.reader_fault || !DoWrite(i, OnMessage, idle))
+							if (i.reader_fault || !DoWrite(i, OnMessage, connection_idle))
 							{
 								i.writer_fault = true;
 								faults++;
+							}
+
+							if (!connection_idle)
+							{
+								idle = false;
+								i.last_message = now;
 							}
 						}
 

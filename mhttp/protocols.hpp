@@ -59,6 +59,8 @@ namespace mhttp
 				uint32_t size = (uint32_t)c.write_buffer.size() - bias;
 				if (sizeof(uint32_t) != c.Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))))
 					return false;
+				if (!size)
+					c.priority = 0;
 			}
 
 			return true;
@@ -396,9 +398,8 @@ RETRY:
 						return false;
 
 					if (!ml)
-						break;
-
-					if(ml > 8*1024*1024)
+						m(c, std::vector<uint8_t>(), gsl::span<uint8_t>()); //Ping
+					else if(ml > 8*1024*1024)
 						return false;
 
 					idle = false;
@@ -447,6 +448,17 @@ RETRY:
 					idle = false;
 
 					c.read_offset += r;
+
+					if (c.read_offset == 4)
+					{
+						if (*((uint32_t*)c.read_buffer.data()) == 0)
+						{
+							m(c, std::vector<uint8_t>(), gsl::span<uint8_t>());
+							c.read_offset = 0;
+							c.read_buffer = std::vector<uint8_t>();
+							return true;
+						}
+					}
 
 					if (c.read_offset != c.read_buffer.size())
 						return true;

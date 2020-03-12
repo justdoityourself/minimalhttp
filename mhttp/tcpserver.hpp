@@ -122,6 +122,14 @@ namespace mhttp
 
 		void RawMessage(sock_t& c, std::vector<uint8_t>&& v, gsl::span<uint8_t> s)
 		{
+			if (!v.size())
+			{
+				//Empty message indicates desire to disconnect.
+				c.priority = -1;
+				c.Close();
+				return; 
+			}
+
 			void* queued_write = nullptr;
 
 			if (!c.Multiplex())
@@ -160,8 +168,7 @@ namespace mhttp
 			catch (...)
 			{
 				//Something went wrong. Let's shut this socket down.
-				client->reader_fault = true;
-				client->writer_fault = true;
+				client->Close();
 			}
 
 		}, on_error, on_write, mplex, { threads });

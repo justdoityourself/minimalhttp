@@ -52,7 +52,7 @@ TEST_CASE("Dropping Connections", "[mhttp::]")
         CHECK(std::equal(message.begin(), message.end(), result.begin()));
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(12000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
     CHECK(tcp.ConnectionCount() == 0);
 

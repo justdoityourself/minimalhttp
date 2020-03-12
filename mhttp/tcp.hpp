@@ -200,6 +200,17 @@ namespace mhttp
 
 		MsgConnection(const std::string& s) { Connect(s); }
 
+		void Disconnect()
+		{
+			std::vector<uint8_t> _null = { 0,0,0,0 };
+			Write(_null);
+		}
+
+		~MsgConnection()
+		{
+			Disconnect();
+		}
+
 		template < typename T > void SendT(const T& t)
 		{
 			uint32_t size = (uint32_t)sizeof(T);

@@ -26,6 +26,8 @@ namespace mhttp
 			run = false;
 			reader.join();
 			writer.join();
+
+			T::Disconnect();
 		}
 
 		ThreadedClientT(string_view host, ConnectionType type, callback_t _read, bool writer_thread = true)
@@ -116,9 +118,13 @@ namespace mhttp
 
 		~EventClientT()
 		{
+			Flush();
+
 			run = false;
 			reader.join();
 			writer.join();
+
+			T::Disconnect();
 		}
 
 		EventClientT(string_view host, ConnectionType type, bool writer_thread = true)
@@ -139,6 +145,13 @@ namespace mhttp
 
 							{
 								std::lock_guard<std::mutex> lock(T::ql);
+
+								if (!v.size() && read_events.size() == 0)
+								{
+									//Ping to validate connection is alive. For Long polling...
+									return;
+								}
+
 								cb = read_events.front();
 								read_events.pop();
 							}
@@ -154,7 +167,8 @@ namespace mhttp
 
 				//Todo clean up reads, todo reconnect?
 
-				if(run) std::cout << "EventClientT Reader EOT" << std::endl;
+				if(run) 
+					std::cout << "EventClientT Reader EOT" << std::endl;
 			})
 			, writer([&]()
 			{
@@ -178,7 +192,8 @@ namespace mhttp
 
 				//Todo clean up writes, todo reconnect?
 
-				if (run) std::cout << "EventClientT Writer EOT" << std::endl;
+				if (run) 
+					std::cout << "EventClientT Writer EOT" << std::endl;
 			}) {  }
 
 		void AsyncWriteCallback(std::vector<uint8_t>&& v, callback_t &&f)

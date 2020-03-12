@@ -71,12 +71,24 @@ namespace mhttp
 								idle = false;
 								i.last_message = now;
 							}
-							else if(priority > 10 * 1000)
+							else if(priority > 60 * 1000 && i.Idle())
 							{
-								//Drop connection after 10 seconds of idle
-								i.priority = -1; //Indicates a timeout
-								i.reader_fault = true;
-								faults++;
+								if (i.type >= ConnectionType::message)
+								{
+									//Sending an empty message will confirm that the connection is truely closed.
+									//This lets us long poll without timeing out:
+									///
+
+									i.last_message = now;
+									i.Ping();
+								}
+								else
+								{
+									//Drop connection after 60 seconds of idle
+									i.priority = -1; //Indicates a timeout
+									i.reader_fault = true;
+									faults++;
+								}
 							}
 						}
 

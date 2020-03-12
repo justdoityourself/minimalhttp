@@ -69,7 +69,8 @@ namespace mhttp
 							break; //Socket was closed gracefully.
 						else
 						{
-							std::cout << "Failed to accept: " << server.Error() << std::endl;
+							auto msg = server.Error();
+							if(msg) std::cout << "Failed to accept: " << msg << std::endl;
 							throw std::runtime_error(server.Error());
 						}
 					}
