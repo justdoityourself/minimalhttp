@@ -42,6 +42,8 @@ namespace mhttp
 									//std::cout << "Exception in OnDisconnect handler." << std::endl;
 								}
 
+								std::cout << "Finished Dropping Connection ( " << (*i).uid << " ) " << std::endl;
+
 								i = connections.erase(i);
 							}
 							else

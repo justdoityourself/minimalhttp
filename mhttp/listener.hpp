@@ -54,7 +54,10 @@ namespace mhttp
 			pool.Async([&,multiplex](bool & run)
 			{
 				if(!server.Listen(port,options))
+				{
+					std::cout << "Failed to listen: " << server.Error() << std::endl;
 					throw std::runtime_error(server.Error());
+				}
 
 				while(run)
 				{
@@ -65,7 +68,10 @@ namespace mhttp
 						if (!server.Valid())
 							break; //Socket was closed gracefully.
 						else
+						{
+							std::cout << "Failed to accept: " << server.Error() << std::endl;
 							throw std::runtime_error(server.Error());
+						}
 					}
 
 
@@ -75,7 +81,7 @@ namespace mhttp
 					}
 					catch(...)
 					{
-						//std::cout << "Exception in OnAccept handler." << std::endl;
+						std::cout << "Exception in OnAccept handler." << std::endl;
 					}
 
 					c.Release();

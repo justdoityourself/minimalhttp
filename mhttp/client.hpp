@@ -37,15 +37,19 @@ namespace mhttp
 				{
 					bool idle = true;
 					if (!DoRead(*this, [&](T & c, std::vector<uint8_t> v, gsl::span<uint8_t> s)
-					{
-						read(std::move(v), s);
+						{
+							read(std::move(v), s);
 
-					} , idle))
-					break;
+						} , idle))
+						break;
 
 					if(idle)
 						std::this_thread::sleep_for(std::chrono::milliseconds(100));
 				}
+
+				//Todo clean up reads, todo reconnect?
+
+				std::cout << "ThreadedClientT Reader EOT" << std::endl;
 			})
 			, writer([&]()
 			{
@@ -61,6 +65,10 @@ namespace mhttp
 					if (idle)
 						std::this_thread::sleep_for(std::chrono::milliseconds(100));
 				}
+
+				//Todo clean up write, todo reconnect?
+
+				std::cout << "ThreadedClientT Writer EOT" << std::endl;
 			}) { T::Async(); T::multiplex = true; }
 	};
 
@@ -111,23 +119,27 @@ namespace mhttp
 				{
 					bool idle = true;
 					if (!DoRead(*this, [&](T & c, std::vector<uint8_t> v, gsl::span<uint8_t> s)
-					{
-						callback_t cb;
-
 						{
-							std::lock_guard<std::mutex> lock(T::ql);
-							cb = read_events.front();
-							read_events.pop();
-						}
-							
-						cb(std::move(v), s);
+							callback_t cb;
 
-					} , idle))
-					break;
+							{
+								std::lock_guard<std::mutex> lock(T::ql);
+								cb = read_events.front();
+								read_events.pop();
+							}
+							
+							cb(std::move(v), s);
+
+						} , idle))
+						break;
 
 					if(idle)
 						std::this_thread::sleep_for(std::chrono::milliseconds(100));
 				}
+
+				//Todo clean up reads, todo reconnect?
+
+				std::cout << "EventClientT Reader EOT" << std::endl;
 			})
 			, writer([&]()
 			{
@@ -143,6 +155,10 @@ namespace mhttp
 					if (idle)
 						std::this_thread::sleep_for(std::chrono::milliseconds(100));
 				}
+
+				//Todo clean up writes, todo reconnect?
+
+				std::cout << "EventClientT Writer EOT" << std::endl;
 			}) { T::Async(); }
 
 		void AsyncWriteCallback(std::vector<uint8_t>&& v, callback_t &&f)

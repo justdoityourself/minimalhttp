@@ -88,6 +88,8 @@ namespace mhttp
 										//std::cout << "Exception in OnError(Reader) handler." << std::endl;
 									}
 
+									std::cout << "Reader Dropping Connection ( " << (*i)->uid << " ) " << std::endl;
+
 									i = connections.erase(i);
 									if(--faults == 0)
 										break;
