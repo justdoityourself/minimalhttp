@@ -145,6 +145,7 @@ namespace mhttp
 			Connect(host, type);
 		}
 
+		int connection_state = 0;
 		void Connect(std::string_view host, ConnectionType type)
 		{
 			T c;
@@ -152,10 +153,14 @@ namespace mhttp
 
 			EnableNetworking();
 			if (!c.Connect(host))
+			{
+				connection_state = -1;
 				return;
+			}
 
 			Init(c, a, type, 15);
 			c.Release();
+			connection_state = 1;
 		}
 
 		bool ReadLock() { return read_lock; }

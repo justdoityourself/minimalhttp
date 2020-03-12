@@ -57,7 +57,7 @@ namespace mhttp
 					break;
 
 				uint32_t size = (uint32_t)c.write_buffer.size() - bias;
-				if (sizeof(uint32_t) != c.Send(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))))
+				if (sizeof(uint32_t) != c.Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))))
 					return false;
 			}
 
@@ -386,14 +386,17 @@ RETRY:
 				}
 				else
 				{
-					uint32_t ml;
-					int header_length = c.Receive( gsl::span<uint8_t>( (uint8_t*) &ml, sizeof(uint32_t) ) );
+					uint32_t ml=0;
+					int header_length = c.ReadIf( gsl::span<uint8_t>( (uint8_t*) &ml, sizeof(uint32_t) ) );
 
 					if(!header_length) 
 						break;
 
 					if(header_length != 4)
 						return false;
+
+					if (!ml)
+						break;
 
 					if(ml > 8*1024*1024)
 						return false;

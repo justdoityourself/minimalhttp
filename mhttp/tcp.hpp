@@ -122,6 +122,29 @@ namespace mhttp
 			return (int)offset;
 		}
 
+		template <typename T> int WriteIf(const T& t)
+		{
+			auto remaining = t.size();
+			uint32_t offset = 0;
+			while (remaining)
+			{
+				auto sent = zed_net_tcp_socket_send(&socket, t.data() + offset, (int)t.size() - offset);
+
+				if (!send && !offset)
+					return;
+
+				if (sent == -1)
+					return -1;
+				if (!sent)
+					std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				else
+					remaining -= sent;
+				offset += sent;
+			}
+
+			return (int)offset;
+		}
+
 		template <typename T> int Receive( T && t )
 		{
 			return zed_net_tcp_socket_receive(&socket, (char*)t.data(), (int)t.size());
@@ -137,6 +160,29 @@ namespace mhttp
 				if(read == -1)
 					return -1;
 				else if(!read)
+					std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				else
+					remaining -= read;
+				offset += read;
+			}
+
+			return offset;
+		}
+
+		template <typename T> int ReadIf(T&& t)
+		{
+			auto remaining = t.size();
+			uint32_t offset = 0;
+			while (remaining)
+			{
+				auto read = zed_net_tcp_socket_receive(&socket, t.data() + offset, (int)t.size() - offset);
+
+				if (!read && !offset)
+					return 0;
+
+				if (read == -1)
+					return -1;
+				else if (!read)
 					std::this_thread::sleep_for(std::chrono::milliseconds(100));
 				else
 					remaining -= read;

@@ -33,6 +33,11 @@ namespace mhttp
 			, read(_read)
 			, reader([&]()
 			{
+				while (!T::connection_state)
+					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+				T::Async(); T::multiplex = true;
+
 				while(run)
 				{
 					bool idle = true;
@@ -53,6 +58,11 @@ namespace mhttp
 			})
 			, writer([&]()
 			{
+				while (!T::connection_state)
+					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+				T::Async(); T::multiplex = true;
+
 				if (!writer_thread)
 					return;
 
@@ -69,7 +79,7 @@ namespace mhttp
 				//Todo clean up write, todo reconnect?
 
 				if (run) std::cout << "ThreadedClientT Writer EOT" << std::endl;
-			}) { T::Async(); T::multiplex = true; }
+			}) {  }
 	};
 
 	template < typename T > class EventClientT : public T
@@ -115,6 +125,11 @@ namespace mhttp
 			: T(host,type)
 			, reader([&]()
 			{
+				while(!T::connection_state)
+					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+				T::Async();
+
 				while(run)
 				{
 					bool idle = true;
@@ -143,6 +158,11 @@ namespace mhttp
 			})
 			, writer([&]()
 			{
+				while (!T::connection_state)
+					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+				T::Async();
+
 				if (!writer_thread)
 					return;
 
@@ -159,7 +179,7 @@ namespace mhttp
 				//Todo clean up writes, todo reconnect?
 
 				if (run) std::cout << "EventClientT Writer EOT" << std::endl;
-			}) { T::Async(); }
+			}) {  }
 
 		void AsyncWriteCallback(std::vector<uint8_t>&& v, callback_t &&f)
 		{

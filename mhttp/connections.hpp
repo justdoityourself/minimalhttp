@@ -65,7 +65,7 @@ namespace mhttp
 			return connections.back();
 		}
 
-		uint32_t ConnectionCount() { return (uint32_t) connections.size(); }
+		size_t ConnectionCount() { return connections.size(); }
 
 	private:
 		std::recursive_mutex lock;
