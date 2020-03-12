@@ -71,6 +71,13 @@ namespace mhttp
 								idle = false;
 								i.last_message = now;
 							}
+							else if(priority > 10 * 1000)
+							{
+								//Drop connection after 10 seconds of idle
+								i.priority = -1; //Indicates a timeout
+								i.reader_fault = true;
+								faults++;
+							}
 						}
 
 						if(faults)
@@ -88,7 +95,7 @@ namespace mhttp
 										//std::cout << "Exception in OnError(Reader) handler." << std::endl;
 									}
 
-									std::cout << "Reader Dropping Connection ( " << (*i)->uid << " ) " << std::endl;
+									if((*i)->priority != -1) std::cout << "Reader Dropping Connection ( " << (*i)->uid << " ) " << std::endl;
 
 									i = connections.erase(i);
 									if(--faults == 0)

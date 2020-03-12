@@ -455,8 +455,10 @@ static int zed_net__error(const char *message) {
 
     if (socket->handle) {
 #ifdef _WIN32
+        shutdown(socket->handle, SD_BOTH);
         closesocket(socket->handle);
 #else
+        shutdown(socket->handle, SD_BOTH);
         close(socket->handle);
 #endif
     }

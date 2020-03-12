@@ -16,6 +16,49 @@
 using namespace mhttp;
 using namespace d8u;
 
+TEST_CASE("Dropping Connections", "[mhttp::]")
+{
+    auto tcp = make_tcp_server("8999", [&](auto& c, auto message, auto wr)
+    {
+        c.AsyncWrite(std::move(message));
+    });
+
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        MsgConnection c("127.0.0.1:8999");
+
+        auto message = std::string_view("THIS IS A MESSAGE");
+        auto result = c.Transact(message);
+
+        CHECK(std::equal(message.begin(), message.end(), result.begin()));
+    }
+
+    {
+        MsgConnection c("127.0.0.1:8999");
+
+        auto message = std::string_view("THIS IS A MESSAGE");
+        auto result = c.Transact(message);
+
+        CHECK(std::equal(message.begin(), message.end(), result.begin()));
+    }
+
+    {
+        MsgConnection c("127.0.0.1:8999");
+
+        auto message = std::string_view("THIS IS A MESSAGE");
+        auto result = c.Transact(message);
+
+        CHECK(std::equal(message.begin(), message.end(), result.begin()));
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(12000));
+
+    CHECK(tcp.ConnectionCount() == 0);
+
+    tcp.Shutdown();
+}
+
 TEST_CASE("Threaded Client Async", "[mhttp::]")
 {
     constexpr auto lim = 100;

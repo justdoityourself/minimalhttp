@@ -62,7 +62,7 @@ namespace mhttp
 										//std::cout << "Exception in OnError(Write) handler." << std::endl;
 									}
 
-									std::cout << "Writer Dropping Connection ( " << (*i)->uid << " ) " << std::endl;
+									if ((*i)->priority != -1) std::cout << "Writer Dropping Connection ( " << (*i)->uid << " ) " << std::endl;
 
 									i = connections.erase(i);
 									if(--faults == 0)
