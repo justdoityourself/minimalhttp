@@ -65,7 +65,7 @@ namespace mhttp
 					TcpAddress address;
 					if (!server.Accept(c, &address))
 					{
-						if (!server.Valid())
+						if (!run || !server.Valid())
 							break; //Socket was closed gracefully.
 						else
 						{
