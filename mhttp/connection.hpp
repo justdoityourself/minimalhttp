@@ -65,9 +65,6 @@ namespace mhttp
 			v = std::move(queue.front().message);
 			queue.pop();
 
-			if (!v.size())
-				std::cout << "here";
-
 			return true;
 		}
 
@@ -108,9 +105,6 @@ namespace mhttp
 
 			m = maps.front().message;
 			maps.pop();
-
-			if (!m.size())
-				std::cout << "here";
 
 			return true;
 		}
