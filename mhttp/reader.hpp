@@ -57,8 +57,8 @@ namespace mhttp
 
 							priority = (uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(now - i.last_message).count();
 
-							if(priority < i.priority)
-								continue;
+							//if(priority < i.priority)
+							//	continue; //TODO detatch this from the graceful indicator so it can be used again
 
 							if(!DoRead(i,OnMessage,connection_idle))
 							{
@@ -107,7 +107,8 @@ namespace mhttp
 										//std::cout << "Exception in OnError(Reader) handler." << std::endl;
 									}
 
-									if((*i)->priority != -1) std::cout << "Reader Dropping Connection ( " << (*i)->uid << " ) " << std::endl;
+									if((*i)->priority != -1) 
+										std::cout << "Reader Dropping Connection ( " << (*i)->uid << " ) " << std::endl;
 
 									i = connections.erase(i);
 									if(--faults == 0)

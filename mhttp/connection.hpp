@@ -35,10 +35,22 @@ namespace mhttp
 
 	class ThreadBase
 	{
+		struct vqueue
+		{
+			bool ready = false;
+			std::vector<uint8_t> message;
+		};
+
+		struct squeue
+		{
+			bool ready = false;
+			gsl::span<uint8_t> message;
+		};
+
 	public:
 		std::mutex ql;
-		std::queue<std::vector<uint8_t>> queue;
-		std::queue<gsl::span<uint8_t>> maps;
+		std::queue<vqueue> queue;
+		std::queue<squeue> maps;
 
 		bool TryWrite(std::vector<uint8_t>& v)
 		{
@@ -47,8 +59,14 @@ namespace mhttp
 			if (!queue.size())
 				return false;
 
-			v = std::move(queue.front());
+			if (!queue.front().ready)
+				return false;
+
+			v = std::move(queue.front().message);
 			queue.pop();
+
+			if (!v.size())
+				std::cout << "here";
 
 			return true;
 		}
@@ -56,15 +74,17 @@ namespace mhttp
 		void ActivateWrite(void* queue, std::vector<uint8_t>&& v)
 		{
 			std::lock_guard<std::mutex> lock(ql);
+			auto pqueue = (vqueue*)queue;
 
-			*((std::vector<uint8_t>*)queue) = std::move(v);
+			pqueue->message = std::move(v);
+			pqueue->ready = true;
 		}
 
 		void* QueueWrite()
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
-			queue.push(std::vector<uint8_t>(0));
+			queue.push(vqueue());
 
 			return (void*)&queue.back();
 		}
@@ -73,7 +93,7 @@ namespace mhttp
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
-			queue.push(std::move(v));
+			queue.push({ true,std::move(v) });
 		}
 
 		bool TryMap(gsl::span<uint8_t>& m)
@@ -83,8 +103,14 @@ namespace mhttp
 			if (!maps.size())
 				return false;
 
-			m = maps.front();
+			if (!maps.front().ready)
+				return false;
+
+			m = maps.front().message;
 			maps.pop();
+
+			if (!m.size())
+				std::cout << "here";
 
 			return true;
 		}
@@ -92,15 +118,17 @@ namespace mhttp
 		template < typename T > void ActivateMap(void* queue, const T& t)
 		{
 			std::lock_guard<std::mutex> lock(ql);
+			auto pqueue = (squeue*)queue;
 
-			*((gsl::span<uint8_t>*)queue) = gsl::span<uint8_t>((uint8_t*)t.data(), t.size());
+			pqueue->message = gsl::span<uint8_t>((uint8_t*)t.data(), t.size());
+			pqueue->ready = true;
 		}
 
 		void* QueueMap()
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
-			maps.push(gsl::span<uint8_t>((uint8_t*)nullptr, (size_t)0));
+			maps.push({ false,gsl::span<uint8_t>((uint8_t*)nullptr, (size_t)0) });
 
 			return (void*)&maps.back();
 		}
@@ -109,7 +137,7 @@ namespace mhttp
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
-			maps.push(gsl::span<uint8_t>((uint8_t*)t.data(), t.size()));
+			maps.push({ true,gsl::span<uint8_t>((uint8_t*)t.data(), t.size()) });
 		}
 
 		bool Idle()

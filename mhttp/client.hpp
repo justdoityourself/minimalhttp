@@ -146,7 +146,7 @@ namespace mhttp
 							{
 								std::lock_guard<std::mutex> lock(T::ql);
 
-								if (!v.size() && read_events.size() == 0)
+								if (!v.size())
 								{
 									//Ping to validate connection is alive. For Long polling...
 									return;
@@ -222,7 +222,7 @@ namespace mhttp
 			{
 				std::lock_guard<std::mutex> lock(T::ql);
 
-				T::queue.push(std::move(v));
+				T::queue.push({ true,std::move(v) });
 
 				read_events.push([&](auto v, auto b) 
 				{
