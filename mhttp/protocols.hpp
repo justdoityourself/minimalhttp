@@ -511,7 +511,7 @@ RETRY:
 					break;
 
 				uint32_t size = (uint32_t)c.map.size();
-				if (sizeof(uint32_t) != c.Send(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))))
+				if (sizeof(uint32_t) != c.Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))))
 					return false;
 			}
 
