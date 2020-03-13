@@ -69,6 +69,16 @@ namespace mhttp
 			zed_net_async(&socket, val);
 		}
 
+		bool ReadBuffer(int size)
+		{
+			return zed_net_read_buffer(&socket, size);
+		}
+
+		bool WriteBuffer(int size)
+		{
+			return zed_net_write_buffer(&socket, size);
+		}
+
 		bool Connect(const string_view s, int timeout = 0,int buffer = 128*1024)
 		{
 			if(-1 == zed_net_get_address(s,SOCK_STREAM,[&](auto s)->bool

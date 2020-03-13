@@ -29,6 +29,10 @@ namespace mhttp
 
 		on_accept_t OnAccept;
 		on_message_t OnMessageEvent;
+		on_write_t OnWrite;
+
+		size_t read_buffer = 0;
+		size_t write_buffer = 0;
 	public:
 
 		struct Options
@@ -39,7 +43,8 @@ namespace mhttp
 		TcpServer(on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, Options o)
 			: OnAccept(a)
 			, OnMessageEvent(r)
-			, TcpWriter(w, e, *this)
+			, OnWrite(w)
+			, TcpWriter(std::bind(&TcpServer::RawWrite, this, p1_t, p2_t), e, *this)
 			, TcpReader(std::bind(&TcpServer::RawMessage, this, p1_t, p2_t, p3_t), e, *this)
 			, TcpConnections(d, *this)
 			, EventHandler< event_p >(o.event_threads, std::bind(&TcpServer::RawEvent, this, p1_t), *this) {}
@@ -64,6 +69,16 @@ namespace mhttp
 		~TcpServer()
 		{
 			Shutdown();
+		}
+
+		void ReadBuffer(size_t size)
+		{
+			read_buffer = size;
+		}
+
+		void WriteBuffer(size_t size)
+		{
+			write_buffer = size;
 		}
 
 		void Shutdown()
@@ -97,7 +112,17 @@ namespace mhttp
 			c.Release();
 		}
 
+		size_t MessageCount() { return messages; }
+		size_t EventsStarted() { return events_started; }
+		size_t EventsFinished() { return events_finished; }
+		size_t ReplyCount() { return replies; }
+
 	private:
+
+		std::atomic<size_t> messages = 0;
+		std::atomic<size_t> events_started = 0;
+		std::atomic<size_t> events_finished = 0;
+		std::atomic<size_t> replies = 0;
 
 		void DoAccept(TcpConnection* c, TcpAddress a, ConnectionType t, uint32_t uid, bool multiplex)
 		{
@@ -108,6 +133,12 @@ namespace mhttp
 				c->Close();
 				return;
 			}
+
+			if (read_buffer)
+				c->ReadBuffer(read_buffer);
+
+			if (write_buffer)
+				c->WriteBuffer(write_buffer);
 
 			auto enable = OnAccept(bc);
 			bc.multiplex = multiplex;
@@ -120,6 +151,12 @@ namespace mhttp
 				TcpReader::Manage(&bc);
 		}
 
+		void RawWrite(sock_t& c, size_t s)
+		{
+			replies++;
+			OnWrite(c, s);
+		}
+
 		void RawMessage(sock_t& c, std::vector<uint8_t>&& v, gsl::span<uint8_t> s)
 		{
 			if (!v.size())
@@ -129,6 +166,8 @@ namespace mhttp
 				c.Close();
 				return; 
 			}
+
+			messages++;
 
 			void* queued_write = nullptr;
 
@@ -143,12 +182,16 @@ namespace mhttp
 
 		void RawEvent(event_p&& p)
 		{
+			events_started++;
+
 			auto& c = *std::get<0>(p);
 			std::apply(OnMessageEvent, p);
 			c.pending--;
 
 			if (!c.Multiplex())
 				c.read_lock = false;
+
+			events_finished++;
 		}
 	};
 

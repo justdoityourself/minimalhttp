@@ -173,7 +173,7 @@ namespace mhttp
 			TcpAddress a;
 
 			EnableNetworking();
-			if (!c.Connect(host))
+			if (!host.size() || !c.Connect(host))
 			{
 				connection_state = -1;
 				return;

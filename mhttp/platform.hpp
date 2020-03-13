@@ -221,6 +221,38 @@ static int zed_net__error(const char *message) {
 #endif
  }
 
+ int zed_net_read_buffer(zed_net_socket_t* sock, int bytes)
+ {
+#ifdef _WIN32
+     DWORD dw = bytes;
+     int r = setsockopt(sock->handle, SOL_SOCKET, SO_RCVBUF, (char*)&dw, sizeof(DWORD));
+     if (r < 0) zed_net__error("Failed to set buffer");
+     return r;
+#else
+     int s = bytes;
+     int r = setsockopt(sock->handle, SOL_SOCKET, SO_RCVBUF, (char*)&s, sizeof(int));
+     if (r < 0)
+         zed_net__error("Failed to set timeout");
+     return r;
+#endif
+ }
+
+ int zed_net_write_buffer(zed_net_socket_t* sock, int bytes)
+ {
+#ifdef _WIN32
+     DWORD dw = bytes;
+     int r = setsockopt(sock->handle, SOL_SOCKET, SO_SNDBUF, (char*)&dw, sizeof(DWORD));
+     if (r < 0) zed_net__error("Failed to set buffer");
+     return r;
+#else
+     int s = bytes;
+     int r = setsockopt(sock->handle, SOL_SOCKET, SO_SNDBUF, (char*)&s, sizeof(int));
+     if (r < 0)
+         zed_net__error("Failed to set timeout");
+     return r;
+#endif
+ }
+
  int zed_net_async(zed_net_socket_t * sock, u_long val = 1)
  {	 
 #ifdef _WIN32

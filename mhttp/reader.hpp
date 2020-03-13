@@ -121,7 +121,7 @@ namespace mhttp
 					}
 
 					if(idle)
-						pool.Delay(100);
+						pool.Delay(10);
 				}
 			});
 		}

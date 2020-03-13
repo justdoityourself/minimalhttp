@@ -129,10 +129,18 @@ namespace mhttp
 
 		EventClientT(string_view host, ConnectionType type, bool writer_thread = true)
 			: T(host,type)
-			, reader([&]()
+			, reader([&, v = host.size() != 0]()
 			{
+				if (!v) return;
+
 				while(!T::connection_state)
 					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+				if (!T::Valid())
+				{
+					std::cout << "EventClientT Reader Failed to Connect" << std::endl;
+					return;
+				}
 
 				T::Async();
 
@@ -162,7 +170,7 @@ namespace mhttp
 						break;
 
 					if(idle)
-						std::this_thread::sleep_for(std::chrono::milliseconds(100));
+						std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				}
 
 				//Todo clean up reads, todo reconnect?
@@ -170,10 +178,18 @@ namespace mhttp
 				if(run) 
 					std::cout << "EventClientT Reader EOT" << std::endl;
 			})
-			, writer([&]()
+			, writer([&, v = host.size() != 0]()
 			{
+				if (!v) return;
+
 				while (!T::connection_state)
 					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+				if (!T::Valid())
+				{
+					std::cout << "EventClientT Writer Failed to Connect" << std::endl;
+					return;
+				}
 
 				T::Async();
 
@@ -187,7 +203,7 @@ namespace mhttp
 						break;
 
 					if (idle)
-						std::this_thread::sleep_for(std::chrono::milliseconds(100));
+						std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				}
 
 				//Todo clean up writes, todo reconnect?
@@ -233,7 +249,7 @@ namespace mhttp
 			}
 
 			while(!ready)
-				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 			return std::make_pair(std::move(result),body);
 		}
