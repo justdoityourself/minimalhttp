@@ -9,6 +9,8 @@
 
 #include "d8u/buffer.hpp"
 
+#include <ctime>
+
 namespace mhttp
 {
 	using namespace d8u;
@@ -196,54 +198,38 @@ namespace mhttp
 					switch (switch_t(cmd))
 					{
 					case switch_t("LIST"):
-						client.data = server->NewestConnection(); //This isn't 100%, timing issue possible.
+						client.data = server->NewestConnection(); //This isn't 100%, timing issue possible with multiple clients.
 
 						if (!client.data)
 							throw "Where did the data connection go?";
 
-						//Example:
-						//client.data->Write(join_memory(std::string_view("dr-r-r 1 Default Anonymous 0 Feb 9 09:38 path/\r\n-r-r-r- 1 Default Anonymous 99 Feb 9 09:38 file.txt\r\n\r\n")));
-
-						/*TIME:
+						client.Ftp150("Sending listing to data connection...");
+						on_enum(client.cwd, [&](bool dir,size_t size, uint64_t _time, std::string_view name)
+						{
 							char szYearOrHour[ 6 ] = "";
 
-							static const char *pszMonth[] =
-								{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+							static const char *pszMonth[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
-							static const char szListFile[] = "%c%c%c%c%c%c%c%c%c%c 1 user group %14"
-						#ifdef __USE_FILE_OFFSET64
-							#ifdef WIN32
-															"I64"
-							#else
-															"ll"
-							#endif
-						#else
-															"l"
-						#endif
-															"i %s %2d %s %s%s\r\n";
-
-							struct tm *t = gmtime( (time_t *) &mtime ); // UTC Time
-							if( time(NULL) - mtime > 180 * 24 * 60 * 60 ) {
-								sprintf( szYearOrHour, "%5d", t->tm_year + 1900 );
-							} else
-								sprintf( szYearOrHour, "%02d:%02d", t->tm_hour, t->tm_min );
-
-							int iLineLen = sprintf( psLine, szListFile,
-								( S_ISDIR( mode ) ) ? 'd' : '-',
-								( mode & S_IREAD ) == S_IREAD ? 'r' : '-',
-								( mode & S_IWRITE ) == S_IWRITE ? 'w' : '-',
-								( mode & S_IEXEC ) == S_IEXEC ? 'x' : '-',
-								'-', '-', '-', '-', '-', '-',
-								size,
-								pszMonth[ t->tm_mon ], t->tm_mday, szYearOrHour,*/
-
-						client.Ftp150("Sending listing to data connection...");
-						on_enum(client.cwd, [&](bool dir,size_t size, uint64_t time, std::string_view name)
-						{
-							if(dir)
-								client.data->Write(join_memory(std::string_view("dr-r-r 1 Default Anonymous "),std::to_string(size),std::string_view(" Feb 9 09:38 ")/*todo time*/,name,std::string_view("/\r\n")));
+							struct tm *t = gmtime( (time_t *) &_time ); // UTC Time
+							if (time(NULL) - _time > 180 * 24 * 60 * 60)
+								sprintf(szYearOrHour, "%5d", t->tm_year + 1900);
 							else
-								client.data->Write(join_memory(std::string_view("-r-r-r- 1 Default Anonymous "), std::to_string(size), std::string_view(" Feb 9 09:38 ")/*todo time*/, name, std::string_view("\r\n")));
+								sprintf(szYearOrHour, "%02d:%02d", t->tm_hour, t->tm_min);
+
+							if(dir)
+								client.data->Write(join_memory(		std::string_view("dr-r-r 1 Default Anonymous "),
+																	std::to_string(size),
+																	std::string_view(" "), std::string_view(pszMonth[t->tm_mon]),
+																	std::string_view(" "), std::to_string(t->tm_mday),
+																	std::string_view(" "), std::string_view(szYearOrHour),
+																	std::string_view(" "), name,std::string_view("/\r\n")));
+							else
+								client.data->Write(join_memory(		std::string_view("-r-r-r- 1 Default Anonymous "), 
+																	std::to_string(size), 
+																	std::string_view(" "), std::string_view(pszMonth[t->tm_mon]), 
+																	std::string_view(" "), std::to_string(t->tm_mday),
+																	std::string_view(" "), std::string_view(szYearOrHour), 
+																	std::string_view(" "), name, std::string_view("\r\n")));
 						});
 
 						client.data->Write(std::string_view("\r\n"));
