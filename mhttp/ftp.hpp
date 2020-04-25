@@ -40,6 +40,7 @@ namespace mhttp
 			sock_t::Connect(host, type);
 		}
 
+		//API doesn't need to be this verbose.
 		void Ftp501()
 		{
 			AsyncWrite(join_memory(sv501));
@@ -173,6 +174,78 @@ namespace mhttp
 		}
 	}
 
+	template < typename ENUM, typename IO > bool FtpIoCommands(TcpServer<FtpConnection>* server, FtpConnection& client, std::string_view _request, ENUM&& on_enum, IO&& on_io)
+	{
+		Helper request(_request);
+		Helper cmd = request.GetWord();
+
+		switch (switch_t(cmd))
+		{
+		case switch_t("LIST"):
+			client.data = server->NewestConnection(); //This isn't 100%, timing issue possible with multiple clients.
+
+			if (!client.data)
+				throw "Where did the data connection go?";
+
+			client.Ftp150("Sending listing to data connection...");
+			on_enum(client.cwd, [&](bool dir, size_t size, uint64_t _time, std::string_view name)
+			{
+				char szYearOrHour[6] = "";
+
+				static const char* pszMonth[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
+				struct tm* t = gmtime((time_t*)&_time); // UTC Time
+				if (time(NULL) - _time > 180 * 24 * 60 * 60)
+					sprintf(szYearOrHour, "%5d", t->tm_year + 1900);
+				else
+					sprintf(szYearOrHour, "%02d:%02d", t->tm_hour, t->tm_min);
+
+				if (dir)
+					client.data->Write(join_memory(std::string_view("dr-r-r 1 Default Anonymous "),
+						std::to_string(size),
+						std::string_view(" "), std::string_view(pszMonth[t->tm_mon]),
+						std::string_view(" "), std::to_string(t->tm_mday),
+						std::string_view(" "), std::string_view(szYearOrHour),
+						std::string_view(" "), name, std::string_view("/\r\n")));
+				else
+					client.data->Write(join_memory(std::string_view("-r-r-r- 1 Default Anonymous "),
+						std::to_string(size),
+						std::string_view(" "), std::string_view(pszMonth[t->tm_mon]),
+						std::string_view(" "), std::to_string(t->tm_mday),
+						std::string_view(" "), std::string_view(szYearOrHour),
+						std::string_view(" "), name, std::string_view("\r\n")));
+			});
+
+			client.data->Write(std::string_view("\r\n"));
+
+			client.Ftp226();
+
+			client.data->Close();
+			client.data = nullptr;
+			return true;
+		case switch_t("RETR"):
+			client.data = server->NewestConnection(); //This isn't 100%, timing issue possible.
+
+			if (!client.data)
+				throw "Where did the data connection go?";
+
+			client.Ftp150("Sending file contents...");
+
+			on_io(client.cwd + "\\" + std::string(request.GetWord()), [&](const auto& block)
+			{
+				client.data->Write(block);
+			});
+
+			client.Ftp226();
+
+			client.data->Close();
+			client.data = nullptr;
+			return true;
+		default:
+			return false;
+		}
+	}
+
 	template < typename ENUM, typename IO > auto make_ftp_server(const string_view ip,const string_view port1, std::string_view port2, ENUM&& on_enum, IO&& on_io, size_t threads = 1, bool mplex = false)
 	{
 		auto on_connect = [](const auto& c)  { return make_pair(true, true); };
@@ -182,9 +255,6 @@ namespace mhttp
 
 		return TcpServer<FtpConnection>(std::make_tuple( std::make_pair((uint16_t)stoi(port1.data()), ConnectionType::ftp), std::make_pair((uint16_t)stoi(port2.data()), ConnectionType::ftp_data)), on_connect, on_disconnect, [ip = std::string(ip),port2 = std::string(port2), on_io = std::move(on_io), on_enum = std::move(on_enum)](auto* _server, auto* _client, auto&& _request, auto body, auto* mplex) mutable
 		{
-			//On Request:
-			//
-
 			auto server = (TcpServer<FtpConnection> * )_server;
 			auto& client = *(FtpConnection*)_client;
 
@@ -192,82 +262,69 @@ namespace mhttp
 			{
 				if (!FtpBaseCommands(client, std::string_view((char*)body.data(), body.size()), ip, port2))
 				{
-					Helper request(body);
-					Helper cmd = request.GetWord();
-
-					switch (switch_t(cmd))
-					{
-					case switch_t("LIST"):
-						client.data = server->NewestConnection(); //This isn't 100%, timing issue possible with multiple clients.
-
-						if (!client.data)
-							throw "Where did the data connection go?";
-
-						client.Ftp150("Sending listing to data connection...");
-						on_enum(client.cwd, [&](bool dir,size_t size, uint64_t _time, std::string_view name)
-						{
-							char szYearOrHour[ 6 ] = "";
-
-							static const char *pszMonth[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-
-							struct tm *t = gmtime( (time_t *) &_time ); // UTC Time
-							if (time(NULL) - _time > 180 * 24 * 60 * 60)
-								sprintf(szYearOrHour, "%5d", t->tm_year + 1900);
-							else
-								sprintf(szYearOrHour, "%02d:%02d", t->tm_hour, t->tm_min);
-
-							if(dir)
-								client.data->Write(join_memory(		std::string_view("dr-r-r 1 Default Anonymous "),
-																	std::to_string(size),
-																	std::string_view(" "), std::string_view(pszMonth[t->tm_mon]),
-																	std::string_view(" "), std::to_string(t->tm_mday),
-																	std::string_view(" "), std::string_view(szYearOrHour),
-																	std::string_view(" "), name,std::string_view("/\r\n")));
-							else
-								client.data->Write(join_memory(		std::string_view("-r-r-r- 1 Default Anonymous "), 
-																	std::to_string(size), 
-																	std::string_view(" "), std::string_view(pszMonth[t->tm_mon]), 
-																	std::string_view(" "), std::to_string(t->tm_mday),
-																	std::string_view(" "), std::string_view(szYearOrHour), 
-																	std::string_view(" "), name, std::string_view("\r\n")));
-						});
-
-						client.data->Write(std::string_view("\r\n"));
-
-						client.Ftp226();
-
-						client.data->Close();
-						client.data = nullptr;
-						break;
-					case switch_t("RETR"):
-						client.data = server->NewestConnection(); //This isn't 100%, timing issue possible.
-
-						if (!client.data)
-							throw "Where did the data connection go?";
-
-						client.Ftp150("Sending file contents...");
-
-						on_io(client.cwd + "\\" + std::string(request.GetWord()), [&](const auto& block)
-						{
-							client.data->Write(block);
-						});
-						
-						client.Ftp226();
-
-						client.data->Close();
-						client.data = nullptr;
-						break;
-					default:
+					if(!FtpIoCommands(server,client, std::string_view((char*)body.data(), body.size()),on_enum,on_io))
 						client.Ftp501();
-						break;
-					}
 				}
 			}
 			catch (...)
 			{
 				client.Ftp501();
 			}
-
 		}, on_error, on_write, mplex, { threads });
 	}
+
+	using on_ftp_enum_result = std::function < void(bool,size_t,uint64_t,std::string_view)>;
+	using on_ftp_io_result = std::function < void(gsl::span<uint8_t>)>;
+
+	using on_ftp_enum = std::function < void(std::string_view, on_ftp_enum_result)>;
+	using on_ftp_io = std::function < void(std::string_view, on_ftp_io_result)>;
+
+	class FtpServer : public TcpServer<>
+	{
+		on_ftp_enum on_enum;
+		on_ftp_io on_io;
+
+		std::string ip;
+		std::string port1;
+		std::string port2;
+	public:
+		FtpServer(on_ftp_enum _on_enum, on_ftp_io _on_io, TcpServer::Options o = TcpServer::Options())
+			: on_enum(_on_enum)
+			, on_io(_on_io)
+			, TcpServer([&](auto* _server, auto* _client, auto&& _request, auto body, auto* mplex)
+		{
+			auto server = (TcpServer<FtpConnection>*)_server;
+			auto& client = *(FtpConnection*)_client;
+
+			try
+			{
+				if (!FtpBaseCommands(client, std::string_view((char*)body.data(), body.size()), ip, port2))
+				{
+					if (!FtpIoCommands(server, client, std::string_view((char*)body.data(), body.size()), on_enum, on_io))
+						client.Ftp501();
+				}
+			}
+			catch (...)
+			{
+				client.Ftp501();
+			}
+		}, o) { }
+
+		FtpServer(const std::string_view _ip, const std::string_view _port1, std::string_view _port2, on_ftp_enum _on_enum, on_ftp_io _on_io, bool mplex = false, TcpServer::Options o = TcpServer::Options())
+			: FtpServer(_on_enum,_on_io, o)
+		{
+			Open(_ip,_port1,_port2,"",mplex);
+		}
+
+		void Open(const std::string_view _ip, const std::string_view _port1, std::string_view _port2, const std::string& options = "", bool mplex = false)
+		{
+			ip = _ip;
+			port1 = _port1;
+			port2 = _port2;
+
+			TcpServer::Open(std::make_tuple(
+										std::make_pair((uint16_t)stoi(port1.data()), ConnectionType::ftp), 
+										std::make_pair((uint16_t)stoi(port2.data()), ConnectionType::ftp_data)), mplex);
+		}
+	};
 }

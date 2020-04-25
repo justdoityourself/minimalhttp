@@ -63,10 +63,7 @@ namespace mhttp
 		template <typename T> TcpServer(const T & ports, on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, bool mplex, Options o)
 			: TcpServer(a, d, r, e, w, o)
 		{
-			std::apply([&](auto& ...x) 
-			{
-				(Open(x.first, "", x.second, mplex), ...);
-			}, ports);
+			Open(ports, mplex);
 		}
 
 		TcpServer(uint16_t port, ConnectionType type, on_message_t r, bool mplex = false, Options o = Options())
@@ -106,6 +103,14 @@ namespace mhttp
 		void Open(uint16_t port, const std::string& options, ConnectionType type, bool mplex)
 		{
 			interfaces.emplace_back(port, options, type, std::bind(&TcpServer::DoAccept, this, p1_t, p2_t, p3_t, p4_t, p5_t), mplex, *this);
+		}
+
+		template <typename T> void Open(const T& ports, bool mplex)
+		{
+			std::apply([&](auto& ...x)
+			{
+				(Open(x.first, "", x.second, mplex), ...);
+			}, ports);
 		}
 
 		void Connect(const std::string& host, ConnectionType type)
