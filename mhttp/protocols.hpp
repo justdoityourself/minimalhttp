@@ -23,7 +23,17 @@ namespace mhttp
 	{
 	public:
 
-		template < typename C, typename T > static bool Initialize(C& c, T type) { return true; } //Protocol based on connect details.
+		template < typename C, typename T > static bool Initialize(C& c, T type) 
+		{ 
+			switch (type)
+			{
+			case ConnectionType::ftp:
+				c.Write(std::string_view("220 Template FTP Server Core Ready.\r\n"));
+				return true;
+			default:
+				return true;
+			}
+		} //Protocol based on connect details.
 
 		template < typename C, typename M > static bool WriteMessage(C & c, M m,bool & idle, uint32_t bias = 0)
 		{
@@ -353,6 +363,104 @@ RETRY:
 		}
 	};
 
+	class FTP
+	{
+	public:
+
+		template < typename C, typename M > static bool Read(C& c, M m, bool& idle, bool talk = false)
+		{
+			constexpr auto buffer_size = 16 * 1024;
+
+			auto reset = [&](size_t end)
+			{
+				if (c.read_offset > end)
+				{
+					/*
+						This condition occurs only when the connection is being used for multiplexing.
+					*/
+
+					std::vector<uint8_t> remainder; remainder.reserve(buffer_size);
+
+					remainder.insert(remainder.end(), c.read_buffer.data() + end, c.read_buffer.data() + c.read_offset);
+
+					auto result = std::move(c.read_buffer);
+					result.resize(end);
+
+					c.read_offset = remainder.size();
+					c.read_buffer = std::move(remainder);
+
+					return std::move(result);
+				}
+				else
+				{
+					c.read_offset = 0;
+					c.read_buffer.resize(end);
+					return std::move(c.read_buffer);
+				}
+			};
+
+			while (true)
+			{
+				if (!c.read_buffer.size())
+					c.read_buffer.resize(buffer_size);
+
+				auto rem = (int32_t)c.read_buffer.size() - (int32_t)c.read_offset;
+
+				if (rem <= 0)
+				{
+					c.read_buffer.resize(c.read_buffer.size() * 2);
+					continue;
+				}
+
+				int r = c.Receive(gsl::span<uint8_t>(c.read_buffer.data() + c.read_offset, rem));
+
+				if (!r)
+					break;
+
+				if (r == -1)
+					return false;
+
+				idle = false;
+
+				c.read_offset += r;
+				size_t end = c.read_offset;
+
+			RETRY:
+				size_t start = 0;
+
+				uint8_t* ptr = c.read_buffer.data();
+
+				for (; start + 1 < end; start++)
+				{
+					if (*ptr++ == '\r' && *(ptr) == '\n')
+					{
+						auto message_size = start + 2;
+
+						auto single = reset(message_size);
+						gsl::span<uint8_t> body(single.data(),start);
+
+						m(c, std::move(single), body);
+
+						c.read_count++;
+						c.read_bytes += single.size();
+
+						if (c.read_buffer.size())
+							goto RETRY; //Another request has been read and is waiting.
+
+						break;
+					}
+				}
+			}
+
+			return true;
+		}
+
+		template < typename C, typename M > static bool Write(C& c, M m, bool& idle)
+		{
+			return Common::WriteRaw(c, m, idle);
+		}
+	};
+
 	class Message
 	{
 	public:
@@ -529,6 +637,9 @@ RETRY:
 	{
 		switch (i.type)
 		{
+		case ConnectionType::ftp:
+		case ConnectionType::ftp_data:
+			return FTP::Write(i, m, idle);
 		case ConnectionType::http:
 			return Http::Write(i, m, idle);
 
@@ -552,6 +663,9 @@ RETRY:
 	{
 		switch (i.type)
 		{
+		case ConnectionType::ftp:
+		case ConnectionType::ftp_data:
+			return FTP::Read(i, m, idle);
 		case ConnectionType::http:
 			return Http::Read(i, m, idle);
 

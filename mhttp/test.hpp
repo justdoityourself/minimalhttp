@@ -9,12 +9,31 @@
 
 #include "tcp.hpp"
 #include "http.hpp"
+#include "ftp.hpp"
 #include "client.hpp"
 
 #include "d8u/string_switch.hpp"
 
 using namespace mhttp;
 using namespace d8u;
+
+TEST_CASE("ftp basics", "[mhttp::]")
+{
+    auto tcp = make_ftp_server("127.0.0.1","8999","8777", [&](std::string_view enum_path,auto cb)
+    {
+        cb(true, 0, 0, "folder1");
+        cb(true, 0, 0, "folder2");
+        cb(true, 0, 0, "folder3");
+
+        cb(false, 0, 0, "test.txt");
+        cb(false, 0, 0, "test2.txt");
+    }, [&](std::string_view file, auto cb)
+    {
+        cb(std::string_view("THIS IS A SIMPLE TEST FILE CONTENTS!"));
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000 * 60 * 30));
+}
 
 TEST_CASE("Dropping Connections", "[mhttp::]")
 {

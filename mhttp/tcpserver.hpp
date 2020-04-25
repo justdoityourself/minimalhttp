@@ -17,12 +17,12 @@
 
 namespace mhttp
 {
-	using event_p = std::tuple< sock_t*, std::vector<uint8_t>, gsl::span<uint8_t>, void* >;
+	using event_p = std::tuple< void*, sock_t*, std::vector<uint8_t>, gsl::span<uint8_t>, void* >;
 
-	class TcpServer : public ThreadHub
+	template < typename CT = sock_t > class TcpServer : public ThreadHub
 		, private TcpWriter
 		, private TcpReader
-		, public TcpConnections
+		, public TcpConnections<CT>
 		, private EventHandler< event_p >
 	{
 		std::list< TcpListener< TcpConnection > > interfaces;
@@ -46,18 +46,27 @@ namespace mhttp
 			, OnWrite(w)
 			, TcpWriter(std::bind(&TcpServer::RawWrite, this, p1_t, p2_t), e, *this)
 			, TcpReader(std::bind(&TcpServer::RawMessage, this, p1_t, p2_t, p3_t), e, *this)
-			, TcpConnections(d, *this)
+			, TcpConnections<CT>(d, *this)
 			, EventHandler< event_p >(o.event_threads, std::bind(&TcpServer::RawEvent, this, p1_t), *this) {}
 
-		TcpServer( on_message_t r, Options o = Options())
-			: TcpServer( [](const auto& c) { return make_pair(true, true); }
+		TcpServer(on_message_t r, Options o = Options())
+			: TcpServer([](const auto& c) { return make_pair(true, true); }
 				, [](const auto& c) {}, r, [](const auto& c) {}
 				, [](const auto& mc, const auto& c) {}, o) {}
 
-		TcpServer(uint16_t port, ConnectionType type,on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, bool mplex, Options o)
-			: TcpServer(a,d,r,e,w,o) 
-		{ 
-			Open(port, "", type, mplex); 
+		TcpServer(uint16_t port, ConnectionType type, on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, bool mplex, Options o)
+			: TcpServer(a, d, r, e, w, o)
+		{
+			Open(port, "", type, mplex);
+		}
+
+		template <typename T> TcpServer(const T & ports, on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, bool mplex, Options o)
+			: TcpServer(a, d, r, e, w, o)
+		{
+			std::apply([&](auto& ...x) 
+			{
+				(Open(x.first, "", x.second, mplex), ...);
+			}, ports);
 		}
 
 		TcpServer(uint16_t port, ConnectionType type, on_message_t r, bool mplex = false, Options o = Options())
@@ -108,7 +117,7 @@ namespace mhttp
 			if (!c.Connect(host))
 				throw std::runtime_error(c.Error());
 
-			DoAccept(&c, address, type,15,false);
+			DoAccept(&c, address, type, 15, false);
 			c.Release();
 		}
 
@@ -126,7 +135,7 @@ namespace mhttp
 
 		void DoAccept(TcpConnection* c, TcpAddress a, ConnectionType t, uint32_t uid, bool multiplex)
 		{
-			auto& bc = TcpConnections::Create(c, a, t, uid);
+			auto& bc = TcpConnections<CT>::Create(c, a, t, uid);
 
 			if (!Common::Initialize(*c, t))
 			{
@@ -135,10 +144,10 @@ namespace mhttp
 			}
 
 			if (read_buffer)
-				c->ReadBuffer(read_buffer);
+				c->ReadBuffer((int)read_buffer);
 
 			if (write_buffer)
-				c->WriteBuffer(write_buffer);
+				c->WriteBuffer((int)write_buffer);
 
 			auto enable = OnAccept(bc);
 			bc.multiplex = multiplex;
@@ -177,14 +186,14 @@ namespace mhttp
 				queued_write = (c.type >= ConnectionType::map32) ? (void*)c.QueueMap() : (void*)c.QueueWrite();
 
 			c.pending++;
-			EventHandler< event_p >::Push(std::make_tuple(&c, std::move(v), s, queued_write));
+			EventHandler< event_p >::Push(std::make_tuple((void*)this, &c, std::move(v), s, queued_write));
 		}
 
 		void RawEvent(event_p&& p)
 		{
 			events_started++;
 
-			auto& c = *std::get<0>(p);
+			auto& c = *std::get<1>(p);
 			std::apply(OnMessageEvent, p);
 			c.pending--;
 
@@ -202,7 +211,7 @@ namespace mhttp
 		auto on_error = [](const auto& c) {};
 		auto on_write = [](const auto& mc, const auto& c) {};
 
-		return TcpServer((uint16_t)stoi(port.data()), type,on_connect, on_disconnect, [f](auto* client, auto&& request, auto body, auto * mplex)
+		return TcpServer((uint16_t)stoi(port.data()), type,on_connect, on_disconnect, [f](void * server,auto* client, auto&& request, auto body, auto * mplex)
 		{
 			try
 			{

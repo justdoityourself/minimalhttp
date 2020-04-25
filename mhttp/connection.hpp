@@ -240,5 +240,5 @@ namespace mhttp
 	using on_disconnect_t = std::function< void(sock_t&) >;
 	using on_write_t = std::function< void(sock_t&, size_t) >;
 	using on_error_t = std::function< void(sock_t&) >;
-	using on_message_t = std::function< void(sock_t*, std::vector<uint8_t>, gsl::span<uint8_t>, void*) >;
+	using on_message_t = std::function< void(void*, sock_t*, std::vector<uint8_t>, gsl::span<uint8_t>, void*) >;
 }

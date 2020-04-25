@@ -220,6 +220,7 @@
     <ClInclude Include="mhttp\common.hpp" />
     <ClInclude Include="mhttp\connection.hpp" />
     <ClInclude Include="mhttp\connections.hpp" />
+    <ClInclude Include="mhttp\ftp.hpp" />
     <ClInclude Include="mhttp\http.hpp" />
     <ClInclude Include="mhttp\listener.hpp" />
     <ClInclude Include="mhttp\platform.hpp" />

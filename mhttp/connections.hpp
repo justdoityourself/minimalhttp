@@ -6,9 +6,8 @@
 
 namespace mhttp
 {
-	class TcpConnections
+	template < typename C = sock_t >class TcpConnections
 	{
-		using C = sock_t;
 		on_disconnect_t OnDisconnect;
 
 	public:
@@ -60,12 +59,22 @@ namespace mhttp
 		{
 			std::lock_guard<std::recursive_mutex> _l(lock);
 
-			connections.emplace_back(*c,a,t,uid);
+			connections.emplace_back();
+			connections.back().Init(*c, a, t, uid);
 
 			return connections.back();
 		}
 
 		size_t ConnectionCount() { return connections.size(); }
+
+		C* NewestConnection()
+		{
+			std::lock_guard<std::recursive_mutex> _l(lock);
+			if (!connections.size())
+				return (C*)nullptr;
+
+			return &connections.back();
+		}
 
 	private:
 		std::recursive_mutex lock;

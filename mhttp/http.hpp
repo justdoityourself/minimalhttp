@@ -158,7 +158,7 @@ namespace mhttp
 		auto on_error = [](const auto& c) {};
 		auto on_write = [](const auto& mc, const auto& c) {};
 
-		return TcpServer((uint16_t)stoi(port.data()), ConnectionType::http, on_connect, on_disconnect, [f = std::move(f)](auto* _client, auto&& _request, auto body,auto * mplex)
+		return TcpServer<>((uint16_t)stoi(port.data()), ConnectionType::http, on_connect, on_disconnect, [f = std::move(f)](auto * server,auto* _client, auto&& _request, auto body,auto * mplex)
 		{
 			//On Request:
 			//
@@ -180,13 +180,13 @@ namespace mhttp
 
 	using on_http_t = std::function < void(HttpConnection&, Http::Request, void*)>;
 
-	class HttpServer : public TcpServer
+	class HttpServer : public TcpServer<>
 	{
 		on_http_t on_request;
 	public:
 		HttpServer(on_http_t _req_cb, TcpServer::Options o = TcpServer::Options())
 			: on_request(_req_cb)
-			, TcpServer([&](auto* _client, auto&& _request, auto body, auto* mplex)
+			, TcpServer([&](auto * server,auto* _client, auto&& _request, auto body, auto* mplex)
 			{
 				auto& client = *(HttpConnection*)_client;
 
