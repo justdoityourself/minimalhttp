@@ -289,7 +289,7 @@ namespace mhttp
 	using on_ftp_enum = std::function < void(FtpConnection& ,std::string_view, on_ftp_enum_result)>;
 	using on_ftp_io = std::function < void(FtpConnection& ,std::string_view, on_ftp_io_result)>;
 	using on_ftp_login = std::function < bool(FtpConnection&)>;
-	using on_ftp_logout = std::function < bool(FtpConnection&)>;
+	using on_ftp_logout = std::function < void(FtpConnection&)>;
 
 	class FtpServer : public TcpServer<FtpConnection>
 	{
