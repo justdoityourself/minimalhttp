@@ -54,6 +54,11 @@ namespace mhttp
 				, [](const auto& c) {}, r, [](const auto& c) {}
 				, [](const auto& mc, const auto& c) {}, o) {}
 
+		TcpServer(on_message_t r, on_disconnect_t d, Options o = Options())
+			: TcpServer([](const auto& c) { return make_pair(true, true); }
+				, d, r, [](const auto& c) {}
+				, [](const auto& mc, const auto& c) {}, o) {}
+
 		TcpServer(uint16_t port, ConnectionType type, on_accept_t a, on_disconnect_t d, on_message_t r, on_error_t e, on_write_t w, bool mplex, Options o)
 			: TcpServer(a, d, r, e, w, o)
 		{

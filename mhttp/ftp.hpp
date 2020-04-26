@@ -251,10 +251,15 @@ namespace mhttp
 		}
 	}
 
-	template < typename ENUM, typename IO, typename LOGIN > auto make_ftp_server(const string_view ip,const string_view port1, std::string_view port2, ENUM&& on_enum, IO&& on_io, LOGIN&& on_login, size_t threads = 1, bool mplex = false)
+	template < typename ENUM, typename IO, typename LOGIN, typename LOGOUT > auto make_ftp_server(const string_view ip,const string_view port1, std::string_view port2, ENUM&& on_enum, IO&& on_io, LOGIN&& on_login, LOGOUT&& on_logout, size_t threads = 1, bool mplex = false)
 	{
 		auto on_connect = [](const auto& c)  { return make_pair(true, true); };
-		auto on_disconnect = [](const auto& c) {};
+
+		auto on_disconnect = [on_logout = std::move(on_logout) ](const auto& c)
+		{
+			on_logout(c);
+		};
+
 		auto on_error = [](const auto& c) {};
 		auto on_write = [](const auto& mc, const auto& c) {};
 
@@ -284,21 +289,24 @@ namespace mhttp
 	using on_ftp_enum = std::function < void(FtpConnection& ,std::string_view, on_ftp_enum_result)>;
 	using on_ftp_io = std::function < void(FtpConnection& ,std::string_view, on_ftp_io_result)>;
 	using on_ftp_login = std::function < bool(FtpConnection&)>;
+	using on_ftp_logout = std::function < bool(FtpConnection&)>;
 
-	class FtpServer : public TcpServer<>
+	class FtpServer : public TcpServer<FtpConnection>
 	{
 		on_ftp_enum on_enum;
 		on_ftp_io on_io;
 		on_ftp_login on_login;
+		on_ftp_logout on_logout;
 
 		std::string ip;
 		std::string port1;
 		std::string port2;
 	public:
-		FtpServer(on_ftp_enum _on_enum, on_ftp_io _on_io, on_ftp_login _on_login, TcpServer::Options o = TcpServer::Options())
+		FtpServer(on_ftp_enum _on_enum, on_ftp_io _on_io, on_ftp_login _on_login, on_ftp_logout _on_logout,TcpServer::Options o = TcpServer::Options())
 			: on_enum(_on_enum)
 			, on_io(_on_io)
 			, on_login(_on_login)
+			, on_logout(_on_logout)
 			, TcpServer([&](auto* _server, auto* _client, auto&& _request, auto body, auto* mplex)
 		{
 			auto server = (TcpServer<FtpConnection>*)_server;
@@ -316,10 +324,13 @@ namespace mhttp
 			{
 				client.Ftp501();
 			}
+		}, [&](auto & c)
+		{
+			on_logout(*((FtpConnection*)&c));
 		}, o) { }
 
-		FtpServer(const std::string_view _ip, const std::string_view _port1, std::string_view _port2, on_ftp_enum _on_enum, on_ftp_io _on_io, on_ftp_login _on_login, bool mplex = false, TcpServer::Options o = TcpServer::Options())
-			: FtpServer(_on_enum,_on_io, _on_login, o)
+		FtpServer(const std::string_view _ip, const std::string_view _port1, std::string_view _port2, on_ftp_enum _on_enum, on_ftp_io _on_io, on_ftp_login _on_login, on_ftp_logout _on_logout, bool mplex = false, TcpServer::Options o = TcpServer::Options())
+			: FtpServer(_on_enum,_on_io, _on_login,_on_logout, o)
 		{
 			Open(_ip,_port1,_port2,"",mplex);
 		}
