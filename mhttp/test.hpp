@@ -19,7 +19,7 @@ using namespace d8u;
 
 TEST_CASE("ftp basics", "[mhttp::]")
 {
-    auto tcp = make_ftp_server("127.0.0.1","8999","8777", [&](std::string_view enum_path,auto cb)
+    auto tcp = make_ftp_server("127.0.0.1","8999","8777", [&](auto& c,std::string_view enum_path,auto cb)
     {
         cb(true, 0, 0, "folder1");
         cb(true, 0, 0, "folder2");
@@ -27,9 +27,12 @@ TEST_CASE("ftp basics", "[mhttp::]")
 
         cb(false, 0, 0, "test.txt");
         cb(false, 0, 0, "test2.txt");
-    }, [&](std::string_view file, auto cb)
+    }, [&](auto& c,std::string_view file, auto cb)
     {
         cb(std::string_view("THIS IS A SIMPLE TEST FILE CONTENTS!"));
+    }, [&](auto & c)
+    {
+        return true;
     });
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000 * 60 * 30));

@@ -121,7 +121,7 @@ namespace mhttp
 		std::string type = "I";
 	};
 
-	bool FtpBaseCommands(FtpConnection& c, std::string_view _request, std::string_view ip, std::string_view port)
+	template < typename LOGIN > bool FtpBaseCommands(FtpConnection& c, std::string_view _request, std::string_view ip, std::string_view port, LOGIN && on_login)
 	{
 		Helper request(_request);
 		Helper cmd = request.GetWord();
@@ -140,7 +140,12 @@ namespace mhttp
 
 		case switch_t("PASS"):
 			c.password = request.GetWord();
-			c.Ftp230();
+
+			if (on_login(c))
+				c.Ftp230();
+			else
+				throw "Rejected User";
+
 			return true;
 
 		case switch_t("SYST"):
@@ -188,7 +193,7 @@ namespace mhttp
 				throw "Where did the data connection go?";
 
 			client.Ftp150("Sending listing to data connection...");
-			on_enum(client.cwd, [&](bool dir, size_t size, uint64_t _time, std::string_view name)
+			on_enum(client,client.cwd, [&](bool dir, size_t size, uint64_t _time, std::string_view name)
 			{
 				char szYearOrHour[6] = "";
 
@@ -231,7 +236,7 @@ namespace mhttp
 
 			client.Ftp150("Sending file contents...");
 
-			on_io(client.cwd + "\\" + std::string(request.GetWord()), [&](const auto& block)
+			on_io(client,client.cwd + "\\" + std::string(request.GetWord()), [&](const auto& block)
 			{
 				client.data->Write(block);
 			});
@@ -246,21 +251,21 @@ namespace mhttp
 		}
 	}
 
-	template < typename ENUM, typename IO > auto make_ftp_server(const string_view ip,const string_view port1, std::string_view port2, ENUM&& on_enum, IO&& on_io, size_t threads = 1, bool mplex = false)
+	template < typename ENUM, typename IO, typename LOGIN > auto make_ftp_server(const string_view ip,const string_view port1, std::string_view port2, ENUM&& on_enum, IO&& on_io, LOGIN&& on_login, size_t threads = 1, bool mplex = false)
 	{
 		auto on_connect = [](const auto& c)  { return make_pair(true, true); };
 		auto on_disconnect = [](const auto& c) {};
 		auto on_error = [](const auto& c) {};
 		auto on_write = [](const auto& mc, const auto& c) {};
 
-		return TcpServer<FtpConnection>(std::make_tuple( std::make_pair((uint16_t)stoi(port1.data()), ConnectionType::ftp), std::make_pair((uint16_t)stoi(port2.data()), ConnectionType::ftp_data)), on_connect, on_disconnect, [ip = std::string(ip),port2 = std::string(port2), on_io = std::move(on_io), on_enum = std::move(on_enum)](auto* _server, auto* _client, auto&& _request, auto body, auto* mplex) mutable
+		return TcpServer<FtpConnection>(std::make_tuple( std::make_pair((uint16_t)stoi(port1.data()), ConnectionType::ftp), std::make_pair((uint16_t)stoi(port2.data()), ConnectionType::ftp_data)), on_connect, on_disconnect, [ip = std::string(ip),port2 = std::string(port2), on_login = std::move(on_login), on_io = std::move(on_io), on_enum = std::move(on_enum)](auto* _server, auto* _client, auto&& _request, auto body, auto* mplex) mutable
 		{
 			auto server = (TcpServer<FtpConnection> * )_server;
 			auto& client = *(FtpConnection*)_client;
 
 			try
 			{
-				if (!FtpBaseCommands(client, std::string_view((char*)body.data(), body.size()), ip, port2))
+				if (!FtpBaseCommands(client, std::string_view((char*)body.data(), body.size()), ip, port2, on_login))
 				{
 					if(!FtpIoCommands(server,client, std::string_view((char*)body.data(), body.size()),on_enum,on_io))
 						client.Ftp501();
@@ -276,21 +281,24 @@ namespace mhttp
 	using on_ftp_enum_result = std::function < void(bool,size_t,uint64_t,std::string_view)>;
 	using on_ftp_io_result = std::function < void(gsl::span<uint8_t>)>;
 
-	using on_ftp_enum = std::function < void(std::string_view, on_ftp_enum_result)>;
-	using on_ftp_io = std::function < void(std::string_view, on_ftp_io_result)>;
+	using on_ftp_enum = std::function < void(FtpConnection& ,std::string_view, on_ftp_enum_result)>;
+	using on_ftp_io = std::function < void(FtpConnection& ,std::string_view, on_ftp_io_result)>;
+	using on_ftp_login = std::function < bool(FtpConnection&)>;
 
 	class FtpServer : public TcpServer<>
 	{
 		on_ftp_enum on_enum;
 		on_ftp_io on_io;
+		on_ftp_login on_login;
 
 		std::string ip;
 		std::string port1;
 		std::string port2;
 	public:
-		FtpServer(on_ftp_enum _on_enum, on_ftp_io _on_io, TcpServer::Options o = TcpServer::Options())
+		FtpServer(on_ftp_enum _on_enum, on_ftp_io _on_io, on_ftp_login _on_login, TcpServer::Options o = TcpServer::Options())
 			: on_enum(_on_enum)
 			, on_io(_on_io)
+			, on_login(_on_login)
 			, TcpServer([&](auto* _server, auto* _client, auto&& _request, auto body, auto* mplex)
 		{
 			auto server = (TcpServer<FtpConnection>*)_server;
@@ -298,7 +306,7 @@ namespace mhttp
 
 			try
 			{
-				if (!FtpBaseCommands(client, std::string_view((char*)body.data(), body.size()), ip, port2))
+				if (!FtpBaseCommands(client, std::string_view((char*)body.data(), body.size()), ip, port2,on_login))
 				{
 					if (!FtpIoCommands(server, client, std::string_view((char*)body.data(), body.size()), on_enum, on_io))
 						client.Ftp501();
@@ -310,8 +318,8 @@ namespace mhttp
 			}
 		}, o) { }
 
-		FtpServer(const std::string_view _ip, const std::string_view _port1, std::string_view _port2, on_ftp_enum _on_enum, on_ftp_io _on_io, bool mplex = false, TcpServer::Options o = TcpServer::Options())
-			: FtpServer(_on_enum,_on_io, o)
+		FtpServer(const std::string_view _ip, const std::string_view _port1, std::string_view _port2, on_ftp_enum _on_enum, on_ftp_io _on_io, on_ftp_login _on_login, bool mplex = false, TcpServer::Options o = TcpServer::Options())
+			: FtpServer(_on_enum,_on_io, _on_login, o)
 		{
 			Open(_ip,_port1,_port2,"",mplex);
 		}
