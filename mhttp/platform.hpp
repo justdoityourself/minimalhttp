@@ -203,6 +203,10 @@ static int zed_net__error(const char *message) {
 #endif
  }
 
+ //TODO NAGLE DISABLE:
+ //DWORD value = 1;
+ //setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, &value, sizeof(value));
+
  int zed_net_buffer(zed_net_socket_t *sock,int bytes)
  {
 #ifdef _WIN32

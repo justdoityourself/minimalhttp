@@ -193,13 +193,20 @@ namespace mhttp
 				throw "Where did the data connection go?";
 
 			client.Ftp150("Sending listing to data connection...");
-			on_enum(client,client.cwd, [&](bool dir, size_t size, uint64_t _time, std::string_view name)
+			on_enum(client,client.cwd, [&](bool dir, size_t size, uint64_t __time, std::string_view name)
 			{
+				time_t _time = (time_t)(__time/1000);
 				char szYearOrHour[6] = "";
 
 				static const char* pszMonth[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
 				struct tm* t = gmtime((time_t*)&_time); // UTC Time
+				if (!t)
+				{
+					_time = 0;
+					t = gmtime((time_t*)&_time);
+				}
+
 				if (time(NULL) - _time > 180 * 24 * 60 * 60)
 					sprintf(szYearOrHour, "%5d", t->tm_year + 1900);
 				else
