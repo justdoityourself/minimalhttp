@@ -443,6 +443,14 @@ namespace mhttp
 			std::array<uint8_t, S> data = { };
 		};
 
+		struct basic_disk
+		{
+			bool read_only = true;
+			uint64_t blocks = 0;
+			uint32_t block_size = 512;
+			std::string target_name = "MinimalHTTPDefault";
+		};
+
 		class ISCSIConnection : public sock_t
 		{
 		public:
@@ -498,19 +506,13 @@ namespace mhttp
 			static constexpr uint32_t max_transfers = 128;
 			std::atomic<uint32_t> current_transfer = 0;
 			Transfer transfers[max_transfers];
+
+			const basic_disk* disk = nullptr;
 		};
 
 #pragma pack(pop)
 
-		struct basic_disk
-		{
-			bool read_only = false;
-			uint64_t blocks = 204800;
-			uint32_t block_size = 512;
-			std::string target_name = "MinimalHTTP";
-		};
-
-		template < typename READ, typename WRITE > bool ISCSIBaseCommands(ISCSIConnection& c, ISCSIMessage msg, READ on_read, WRITE on_write, const basic_disk & bd = basic_disk())
+		template < typename LOGIN, typename LOGOUT, typename READ, typename WRITE, typename FLUSH> bool ISCSIBaseCommands(ISCSIConnection& c, ISCSIMessage msg, LOGIN on_login, LOGOUT on_logout, READ on_read, WRITE on_write, FLUSH on_flush, const basic_disk & _bd = basic_disk())
 		{
 			auto s = msg.to_struct();
 			auto d = msg.Data();
@@ -532,12 +534,12 @@ namespace mhttp
 					if (max > sz)
 					{
 						reply.header.scsi_reply.underflow = true;
-						reply.header.login.custom32[6] = swap_endian<uint32_t>((uint32_t)(max - sz));
+						reply.header.standard.custom32[6] = swap_endian<uint32_t>((uint32_t)(max - sz));
 					}
 					else if (max < sz)
 					{
 						reply.header.scsi_reply.overflow = true;
-						reply.header.login.custom32[6] = swap_endian<uint32_t>((uint32_t)(sz - max));
+						reply.header.standard.custom32[6] = swap_endian<uint32_t>((uint32_t)(sz - max));
 						sz = max;
 					}
 				}
@@ -554,11 +556,11 @@ namespace mhttp
 			auto send_sense = [&](const auto & page)
 			{
 				if(!s.scsi_cmd.scsi_descriptor.disable_block_descriptors)
-					send_scsi_reply(ISCSIReply<256>(std::array<uint8_t, 4>{(uint8_t)(11 + page.size()), 0, (uint8_t)(((bd.read_only) ? 0x80 : 0) | 0x10/*DPO FUA*/), 8},
-													t_buffer<uint8_t>(std::array<uint32_t, 2>{0, swap_endian<uint32_t>(bd.block_size)}),
+					send_scsi_reply(ISCSIReply<256>(std::array<uint8_t, 4>{(uint8_t)(11 + page.size()), 0, (uint8_t)(((c.disk->read_only) ? 0x80 : 0) | 0x10/*DPO FUA*/), 8},
+													t_buffer<uint8_t>(std::array<uint32_t, 2>{0, swap_endian<uint32_t>(c.disk->block_size)}),
 													page), 12+ page.size());
 				else
-					send_scsi_reply(ISCSIReply<256>(std::array<uint8_t, 4>{(uint8_t)(3 + page.size()),0, (uint8_t)(((bd.read_only) ? 0x80 : 0) | 0x10/*DPO FUA*/),0},
+					send_scsi_reply(ISCSIReply<256>(std::array<uint8_t, 4>{(uint8_t)(3 + page.size()),0, (uint8_t)(((c.disk->read_only) ? 0x80 : 0) | 0x10/*DPO FUA*/),0},
 													page), 4 + page.size());
 			};
 
@@ -576,14 +578,14 @@ namespace mhttp
 					throw std::runtime_error("Bad Transfer ID");
 
 				auto& handle = c.transfers[s.standard.custom32[0]];
-				handle.current += d.size() / bd.block_size;
+				handle.current += (uint32_t)d.size() / c.disk->block_size;
 
 				if (handle.current == handle.length)
 					send_scsi_reply(ISCSIReply<>(), 0, iscsi_scsi_reply, false, false);
 
-				auto offset = swap_endian<uint32_t>(s.standard.custom32[5]) / bd.block_size;
+				auto offset = swap_endian<uint32_t>(s.standard.custom32[5]) / c.disk->block_size;
 
-				on_write(handle.offset + offset, d.size() / bd.block_size, d);
+				on_write(c,handle.offset + offset, (uint32_t)d.size() / c.disk->block_size, d);
 
 				return true;
 			}
@@ -610,25 +612,25 @@ namespace mhttp
 
 						handle.offset = (uint64_t)swap_endian<uint32_t>(s.scsi_cmd.block10.lba);
 						handle.length = (uint32_t)swap_endian<uint16_t>(s.scsi_cmd.block10.length);
-						handle.current = d.size()/bd.block_size;
+						handle.current = (uint32_t)d.size()/c.disk->block_size;
 
 						for (size_t i = 0; i < count; i++)
 						{
 							ISCSIReply<> r;
 							r.header.standard.custom32[0] = transfer; //Transfer Tag
-							r.header.standard.custom32[4] = swap_endian<uint32_t>(i);
-							r.header.standard.custom32[5] = swap_endian<uint32_t>(d.size() + max_target * i);
+							r.header.standard.custom32[4] = swap_endian<uint32_t>((uint32_t)i);
+							r.header.standard.custom32[5] = swap_endian<uint32_t>((uint32_t)(d.size() + max_target * i));
 							r.header.standard.custom32[6] = swap_endian<uint32_t>(((i+1) == count) ? rem % max_target : max_target);
 
 							send_scsi_reply(r, 0, iscsi_ready, false, false);
 						}
 
-						on_write((uint64_t)swap_endian<uint32_t>(s.scsi_cmd.block10.lba), (uint32_t)swap_endian<uint16_t>(s.scsi_cmd.block10.length), d);
+						on_write(c,(uint64_t)swap_endian<uint32_t>(s.scsi_cmd.block10.lba), (uint32_t)swap_endian<uint16_t>(s.scsi_cmd.block10.length), d);
 					}
 					else
 					{
 						send_scsi_reply(ISCSIReply<>(), 0, iscsi_scsi_reply, false, false);
-						on_write((uint64_t)swap_endian<uint32_t>(s.scsi_cmd.block10.lba), (uint32_t)swap_endian<uint16_t>(s.scsi_cmd.block10.length), d);
+						on_write(c,(uint64_t)swap_endian<uint32_t>(s.scsi_cmd.block10.lba), (uint32_t)swap_endian<uint16_t>(s.scsi_cmd.block10.length), d);
 					}
 
 					return true;
@@ -637,9 +639,9 @@ namespace mhttp
 				{
 					auto count = (uint32_t)swap_endian<uint16_t>(s.scsi_cmd.block10.length);
 					auto offset = (uint64_t)swap_endian<uint32_t>(s.scsi_cmd.block10.lba);
-					if (count * bd.block_size > c.max_recv)
+					if (count * c.disk->block_size > c.max_recv)
 					{
-						auto max = c.max_recv / bd.block_size;
+						auto max = c.max_recv / c.disk->block_size;
 
 						uint32_t itr = 0;
 						while (count)
@@ -652,9 +654,9 @@ namespace mhttp
 							reply.header.standard.custom32[4] = swap_endian<uint32_t>(itr);
 							reply.header.standard.custom32[5] = swap_endian<uint32_t>(itr++ * c.max_recv);
 
-							send_scsi_reply(reply, current * bd.block_size, iscsi_recv, true, false, current==count);
+							send_scsi_reply(reply, current * c.disk->block_size, iscsi_recv, true, false, current==count);
 
-							on_read(offset, current, [&](uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
+							on_read(c,offset, current, [&](uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
 							{
 								std::vector<uint8_t> dup_buffer(data.size());
 								std::copy(data.begin(), data.end(), dup_buffer.begin());
@@ -667,8 +669,8 @@ namespace mhttp
 					}
 					else
 					{
-						send_scsi_reply(ISCSIReply<0>(std::array<uint8_t, 0>{}), count * bd.block_size, iscsi_recv, true, false);
-						on_read(offset, (uint32_t)count, [&](uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
+						send_scsi_reply(ISCSIReply<0>(std::array<uint8_t, 0>{}), count * c.disk->block_size, iscsi_recv, true, false);
+						on_read(c,offset, (uint32_t)count, [&](uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
 						{
 							std::vector<uint8_t> dup_buffer(data.size());
 							std::copy(data.begin(), data.end(), dup_buffer.begin());
@@ -711,14 +713,15 @@ namespace mhttp
 						std::cout << "service action not supported " << std::endl;
 						return false;
 					case 0x10: //Capacity
-						send_scsi_reply(ISCSIReply<32>(scsi_capacity16{ swap_endian<uint64_t>(bd.blocks-1),swap_endian<uint32_t>(bd.block_size),{} }), 32);
+						send_scsi_reply(ISCSIReply<32>(scsi_capacity16{ swap_endian<uint64_t>(c.disk->blocks-1),swap_endian<uint32_t>(c.disk->block_size),{} }), 32);
 						return true;
 					}
 					return true;
 				case scsi_capacity10:
-					send_scsi_reply(ISCSIReply<8>(t_buffer<uint8_t>(std::array<uint32_t, 2>{swap_endian<uint32_t>((uint32_t)bd.blocks-1), swap_endian<uint32_t>(bd.block_size)})), 8);
+					send_scsi_reply(ISCSIReply<8>(t_buffer<uint8_t>(std::array<uint32_t, 2>{swap_endian<uint32_t>((uint32_t)c.disk->blocks-1), swap_endian<uint32_t>(c.disk->block_size)})), 8);
 					return true;
 				case scsi_sync_cache:
+					on_flush(c);
 					send_scsi_reply(ISCSIReply<>(), 0, iscsi_scsi_reply, false);
 					return true;
 				case scsi_inquiry:
@@ -740,9 +743,9 @@ namespace mhttp
 						send_scsi_reply(ISCSIReply<12>(std::array<uint8_t, 12>{0, 0x80, 0, 8, '0', '0', '0', '0', '0', '0', '0', '0'}), 12);
 						return true;
 					case 0x83: //DeviceID
-						send_scsi_reply(ISCSIReply<256>(std::array<uint8_t, 20>{0, 0x83, 0, (uint8_t)(16 + bd.target_name.size()),
+						send_scsi_reply(ISCSIReply<256>(std::array<uint8_t, 20>{0, 0x83, 0, (uint8_t)(16 + c.disk->target_name.size()),
 																					1/*Binary*/, 3 /*NAA*/,0,8 /*u16 len*/, 0x20, 0, 0, 0,5,0,0,0,
-																					0x50 /*ISCSI*/ | 2 /*string*/, 0x20 /*Association*/ | 8 /*Target Name*/, 0, (uint8_t)bd.target_name.size()},bd.target_name), 20+bd.target_name.size());								
+																					0x50 /*ISCSI*/ | 2 /*string*/, 0x20 /*Association*/ | 8 /*Target Name*/, 0, (uint8_t)c.disk->target_name.size()},c.disk->target_name), 20+c.disk->target_name.size());
 						return true;
 					case 0xB0: //Limits
 						return false;
@@ -877,12 +880,16 @@ namespace mhttp
 
 						reply.header.login.custom32[1] = swap_endian<uint32_t>(c.sn++);
 						reply.header.login.custom32[2] = swap_endian<uint32_t>(c.cmd_sn);
-						reply.header.login.custom32[3] = swap_endian<uint32_t>(c.cmd_sn++ + c.queue_size);
+						reply.header.login.custom32[3] = swap_endian<uint32_t>(c.cmd_sn + c.queue_size);
 
 						if (s.login.next == 3)
 						{
 							c.online = true;
 							c.cmd_sn++;
+
+							on_login(c);
+							if (!c.disk)
+								c.disk = &_bd;
 						}
 
 						auto buffer = reply.ToBuffer(sz);
@@ -910,7 +917,7 @@ namespace mhttp
 						std::cout << "Unknown K/V Text Command: " << k << " / " << v << std::endl;
 						break;
 					case switch_t("SendTargets"):
-						sz = join_fixed(reply.data, std::string_view("TargetName="),bd.target_name,string_viewz(""));
+						sz = join_fixed(reply.data, std::string_view("TargetName="),_bd.target_name,string_viewz(""));
 						break;
 					}
 				}
@@ -945,6 +952,8 @@ namespace mhttp
 				auto buffer = reply.ToBuffer();
 				if (iscsi_debug) std::cout << "Write: " << d8u::util::to_hex(buffer) << std::endl;
 				c.AsyncWrite(std::move(buffer));
+
+				on_logout(c);
 
 				return true;
 			}		
@@ -983,7 +992,7 @@ namespace mhttp
 			return false;
 		}
 
-		template < typename READ, typename WRITE > auto make_iscsi_server(std::string_view port, READ &&on_read, WRITE &&on_write, const basic_disk& bd, size_t threads = 1, bool mplex = false)
+		template < typename LOGIN, typename LOGOUT, typename READ, typename WRITE, typename FLUSH > auto make_iscsi_server(std::string_view port, LOGIN && on_login, LOGOUT && on_logout,READ &&on_read, WRITE &&on_write, FLUSH&& on_flush, const basic_disk& bd = basic_disk(), size_t threads = 1, bool mplex = false)
 		{
 			auto on_connect = [](const auto& c) { return std::make_pair(true, true); };
 
@@ -992,7 +1001,7 @@ namespace mhttp
 			auto on_error = [](const auto& c) {};
 			auto _on_write = [](const auto& mc, const auto& c) {};
 
-			return TcpServer<ISCSIConnection>((uint16_t)std::stoi(port.data()), ConnectionType::iscsi, on_connect, on_disconnect, [bd, on_read = std::move(on_read), on_write = std::move(on_write)](auto* _server, auto* _client, auto&& _request, auto body, auto* mplex) mutable
+			return TcpServer<ISCSIConnection>((uint16_t)std::stoi(port.data()), ConnectionType::iscsi, on_connect, on_disconnect, [bd, on_logout = std::move(on_logout), on_login = std::move(on_login), on_read = std::move(on_read), on_write = std::move(on_write), on_flush = std::move(on_flush)](auto* _server, auto* _client, auto&& _request, auto body, auto* mplex) mutable
 			{
 				auto server = (TcpServer<ISCSIConnection>*)_server;
 				auto& client = *(ISCSIConnection*)_client;
@@ -1001,7 +1010,7 @@ namespace mhttp
 
 				try
 				{
-					if (!ISCSIBaseCommands(client, body,on_read,on_write,bd))
+					if (!ISCSIBaseCommands(client, body,on_login,on_logout,on_read,on_write, on_flush,bd))
 						throw std::runtime_error("Unsupported command");
 				}
 				catch (...)
@@ -1010,5 +1019,59 @@ namespace mhttp
 				}
 			}, on_error, _on_write, mplex, { threads });
 		}
+
+		using on_iscsi_read_ready = std::function < void(uint64_t, uint32_t, gsl::span<uint8_t>)>;
+
+		using on_iscsi_read = std::function < void(ISCSIConnection& , uint64_t, uint32_t, on_iscsi_read_ready)>;
+		using on_iscsi_write = std::function < void(ISCSIConnection& ,uint64_t,uint32_t,gsl::span<uint8_t>)>;
+		using on_iscsi_flush = std::function < void(ISCSIConnection&)>;
+		using on_iscsi_login = std::function < void(ISCSIConnection&)>;
+		using on_iscsi_logout = std::function < void(ISCSIConnection&)>;
+
+		class iScsiServer : public TcpServer<ISCSIConnection>
+		{
+			on_iscsi_read on_read;
+			on_iscsi_write on_write;
+			on_iscsi_flush on_flush;
+			on_iscsi_login on_login;
+			on_iscsi_logout on_logout;
+
+		public:
+			iScsiServer(on_iscsi_login _on_login, on_iscsi_logout _on_logout, on_iscsi_read _on_read, on_iscsi_write _on_write, on_iscsi_flush _on_flush, const basic_disk& bd = basic_disk(),TcpServer::Options o = TcpServer::Options())
+				: on_read(_on_read)
+				, on_write(_on_write)
+				, on_flush(_on_flush)
+				, on_login(_on_login)
+				, on_logout(_on_logout)
+				, TcpServer([&](auto* _server, auto* _client, auto&& _request, auto body, auto* mplex)
+			{
+				auto server = (TcpServer<ISCSIConnection>*)_server;
+				auto& client = *(ISCSIConnection*)_client;
+
+				try
+				{
+					if (!ISCSIBaseCommands(client, body, on_login, on_logout, on_read, on_write, on_flush, bd))
+						throw std::runtime_error("Unsupported command");
+				}
+				catch (...)
+				{
+					client.Reject(iscsi_err_protocol);
+				}
+			}, [&](auto & c)
+			{
+				on_logout(*((ISCSIConnection*)&c));
+			}, o) { }
+
+			iScsiServer(std::string_view port, on_iscsi_login _on_login, on_iscsi_logout _on_logout, on_iscsi_read _on_read, on_iscsi_write _on_write, on_iscsi_flush _on_flush,  const basic_disk& bd = basic_disk(), bool mplex = false, TcpServer::Options o = TcpServer::Options())
+				: iScsiServer( _on_login,_on_logout, _on_read, _on_write, _on_flush, bd, o)
+			{
+				Open(port,"",mplex);
+			}
+
+			void Open(const std::string_view port, const std::string& options = "", bool mplex = false)
+			{
+				TcpServer::Open((uint16_t)std::stoi(port.data()), options, ConnectionType::iscsi, mplex);
+			}
+		};
 	}
 }

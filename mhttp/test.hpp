@@ -22,7 +22,7 @@ using namespace d8u;
 
 #include "volrng/iscsi_win.hpp"
 
-//Wireshark replay to compair and iron out bugs
+//Wireshark replay to compare and iron out bugs
 void iscsi_replay(std::string_view file)
 {
     iscsi::ISCSIConnection dummy;
@@ -50,13 +50,13 @@ void iscsi_replay(std::string_view file)
         auto read = d8u::util::to_bin(_read);
         stream.GetLine2();
 
-        auto res = iscsi::ISCSIBaseCommands(dummy, gsl::span<uint8_t>(read.data(), read.size()), [&](uint64_t sector, uint32_t count, auto&& cb)
+        auto res = iscsi::ISCSIBaseCommands(dummy, gsl::span<uint8_t>(read.data(), read.size()), [&](auto& c) {}, [&](auto& c) {},[&](auto &c,uint64_t sector, uint32_t count, auto&& cb)
         {
             cb(sector, count, gsl::span<uint8_t>(buffer.data() + sector * 512, count * 512));
-        }, [&](uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
+        }, [&](auto& c, uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
         {
             std::copy(data.begin(), data.end(), buffer.begin() + sector * 512);
-        });
+        }, [&](auto& c) {});
 
         if (!res)
             std::cout << "Not implemented" << std::endl;
@@ -137,11 +137,21 @@ TEST_CASE("iscsi replay", "[mhttp::]")
     //iscsi_replay("iscsi_test.txt");
 }
 
-TEST_CASE("iscsi basics", "[mhttp::]")
+TEST_CASE("iscsi custom disk", "[mhttp::]")
 {
     std::vector<uint8_t> buffer(100 * 1024 * 1024);
 
-    auto tcp = iscsi::make_iscsi_server("3260", [&](uint64_t sector, uint32_t count, auto&& cb)
+    iscsi::basic_disk disk{ false,100 * 1024 * 1024 / 512, 512, "testtargetname100" };
+
+    auto tcp = iscsi::make_iscsi_server("3260", [&](auto& c) 
+    {
+        if(c.target_name == "testtargetname100")
+            c.disk = &disk;
+    }, [&](auto& c) 
+    {
+        //LOGOUT
+        c.disk = nullptr;
+    }, [&](auto& c,uint64_t sector, uint32_t count, auto&& cb)
     {
         auto block = gsl::span<uint8_t>(buffer.data() + sector * 512, count * 512);
 
@@ -149,16 +159,65 @@ TEST_CASE("iscsi basics", "[mhttp::]")
         //std::cout << util::to_hex(block) << std::endl;
 
         cb(sector, count, block);
-    }, [&](uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
+    }, [&](auto& c,uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
     {
         //std::cout << "Write:" << sector << " " << count << std::endl;
 
         std::copy(data.begin(), data.end(), buffer.begin() + sector * 512);
-    },
+    },[&](auto& c) {});
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
+    volrng::win::ISCSIClient::ResetPortal("127.0.0.1");
+    volrng::win::ISCSIClient::LogoutAll("127.0.0.1");
+
+    volrng::win::ISCSIClient::DirectLogin("testtargetname100", "127.0.0.1");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000)); //Wait for disk to be assigned a legacy id
+
+    volrng::win::ISCSIClient::EnumerateSessions("", [](auto & map)
+    {
+        if (map["Target Name"] == std::string_view("testtargetname100"))
+        {
+            std::cout << map["Legacy Device Name"] << std::endl;
+            volrng::win::ISCSIClient::Partition(std::string_view(&map["Legacy Device Name"].back(),1), "Z");
+        }
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
+    CHECK(true == std::filesystem::copy_file("replay/replay.7z", "Z:/replay.7z"));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
+    volrng::win::ISCSIClient::LogoutAll("127.0.0.1");
+    volrng::win::ISCSIClient::ResetPortal("127.0.0.1");
+}
+
+TEST_CASE("iscsi basics", "[mhttp::]")
+{
+    std::vector<uint8_t> buffer(100 * 1024 * 1024);
+
+    auto tcp = iscsi::make_iscsi_server("3260", [&](auto& c) {}, [&](auto& c) {}, [&](auto& c,uint64_t sector, uint32_t count, auto&& cb)
+    {
+        auto block = gsl::span<uint8_t>(buffer.data() + sector * 512, count * 512);
+
+        //std::cout << "Read:" << sector << " " << count << std::endl;
+        //std::cout << util::to_hex(block) << std::endl;
+
+        cb(sector, count, block);
+    }, [&](auto& c,uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
+    {
+        //std::cout << "Write:" << sector << " " << count << std::endl;
+
+        std::copy(data.begin(), data.end(), buffer.begin() + sector * 512);
+    }, 
+    [&](auto& c) {},
     {false,100 * 1024 * 1024 /512, 512, "RamDisk100"});
 
     std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
+    volrng::win::ISCSIClient::ResetPortal("127.0.0.1");
     volrng::win::ISCSIClient::LogoutAll("127.0.0.1");
 
     volrng::win::ISCSIClient::EnumerateTargets("", [](std::string_view target) 
@@ -173,6 +232,8 @@ TEST_CASE("iscsi basics", "[mhttp::]")
         std::cout << session << " " << device << " " << target << std::endl;
     });
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000)); //Wait for disk to be assigned a legacy id
+
     volrng::win::ISCSIClient::EnumerateSessions("", [](auto & map)
     {
         if (map["Target Name"] == std::string_view("ramdisk100"))
@@ -182,11 +243,19 @@ TEST_CASE("iscsi basics", "[mhttp::]")
         }
     });
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000 * 60 * 30));
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
+    CHECK(true == std::filesystem::copy_file("replay/replay.7z", "Z:/replay.7z"));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
+    volrng::win::ISCSIClient::LogoutAll("127.0.0.1");
+    volrng::win::ISCSIClient::ResetPortal("127.0.0.1");
 }
 
 TEST_CASE("ftp basics", "[mhttp::]")
 {
+    //NOTE this was tested manually, todo get ftp code client and automate
     auto tcp = ftp::make_ftp_server("127.0.0.1","8999","8777", [&](auto& c,std::string_view enum_path,auto cb)
     {
         //enumerate
@@ -202,14 +271,15 @@ TEST_CASE("ftp basics", "[mhttp::]")
         cb(std::string_view("THIS IS A SIMPLE TEST FILE CONTENTS!"));
     }, [&](auto & c)
     {
-        return true; //login
+        return true; //login Accept all
     },
     [&](auto& c)
     {
         //Logout
     });
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000 * 60 * 30));
+    //MANUAL
+    //std::this_thread::sleep_for(std::chrono::milliseconds(1000 * 60 * 30));
 }
 
 TEST_CASE("Dropping Connections", "[mhttp::]")
