@@ -12,7 +12,6 @@
 
 namespace mhttp
 {
-	using namespace std;
 	class TcpConnection
 	{
 		zed_net_socket_t socket = { 0, 0, 0 };
@@ -79,7 +78,7 @@ namespace mhttp
 			return zed_net_write_buffer(&socket, size);
 		}
 
-		bool Connect(const string_view s, int timeout = 0,int buffer = 128*1024)
+		bool Connect(const std::string_view s, int timeout = 0,int buffer = 128*1024)
 		{
 			if(-1 == zed_net_get_address(s,SOCK_STREAM,[&](auto s)->bool
 			{

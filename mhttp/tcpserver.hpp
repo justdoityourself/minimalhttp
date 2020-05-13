@@ -50,12 +50,12 @@ namespace mhttp
 			, EventHandler< event_p >(o.event_threads, std::bind(&TcpServer::RawEvent, this, p1_t), *this) {}
 
 		TcpServer(on_message_t r, Options o = Options())
-			: TcpServer([](const auto& c) { return make_pair(true, true); }
+			: TcpServer([](const auto& c) { return std::make_pair(true, true); }
 				, [](const auto& c) {}, r, [](const auto& c) {}
 				, [](const auto& mc, const auto& c) {}, o) {}
 
 		TcpServer(on_message_t r, on_disconnect_t d, Options o = Options())
-			: TcpServer([](const auto& c) { return make_pair(true, true); }
+			: TcpServer([](const auto& c) { return std::make_pair(true, true); }
 				, d, r, [](const auto& c) {}
 				, [](const auto& mc, const auto& c) {}, o) {}
 
@@ -73,7 +73,7 @@ namespace mhttp
 
 		TcpServer(uint16_t port, ConnectionType type, on_message_t r, bool mplex = false, Options o = Options())
 			: TcpServer(port, type
-				, [](const auto& c) { return make_pair(true, true); }
+				, [](const auto& c) { return std::make_pair(true, true); }
 				, [](const auto& c) {}, r, [](const auto& c) {}
 				, [](const auto& mc, const auto& c) {}, mplex, o) {}
 
@@ -214,14 +214,14 @@ namespace mhttp
 		}
 	};
 
-	template < typename F > auto make_tcp_server(const string_view port, F f, size_t threads = 1, bool mplex = false, ConnectionType type = ConnectionType::message)
+	template < typename F > auto make_tcp_server(const std::string_view port, F f, size_t threads = 1, bool mplex = false, ConnectionType type = ConnectionType::message)
 	{
-		auto on_connect = [](const auto& c) { return make_pair(true, true); };
+		auto on_connect = [](const auto& c) { return std::make_pair(true, true); };
 		auto on_disconnect = [](const auto& c) {};
 		auto on_error = [](const auto& c) {};
 		auto on_write = [](const auto& mc, const auto& c) {};
 
-		return TcpServer((uint16_t)stoi(port.data()), type,on_connect, on_disconnect, [f](void * server,auto* client, auto&& request, auto body, auto * mplex)
+		return TcpServer((uint16_t)std::stoi(port.data()), type,on_connect, on_disconnect, [f](void * server,auto* client, auto&& request, auto body, auto * mplex)
 		{
 			try
 			{
@@ -236,12 +236,12 @@ namespace mhttp
 		}, on_error, on_write, mplex, { threads });
 	}
 
-	template < typename F > auto make_map_server(const string_view port, F f, size_t threads = 1)
+	template < typename F > auto make_map_server(const std::string_view port, F f, size_t threads = 1)
 	{
 		return make_tcp_server(port, f, threads, false, ConnectionType::map32);
 	}
 
-	template < typename F > auto make_halfmap_server(const string_view port, F f, size_t threads = 1)
+	template < typename F > auto make_halfmap_server(const std::string_view port, F f, size_t threads = 1)
 	{
 		return make_tcp_server(port, f, threads, true, ConnectionType::writemap32);
 	}

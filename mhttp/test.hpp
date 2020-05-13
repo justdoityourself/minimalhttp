@@ -6,20 +6,188 @@
 #include <execution>
 
 #include "../catch.hpp"
+#include "../mio.hpp"
 
 #include "tcp.hpp"
 #include "http.hpp"
 #include "ftp.hpp"
+#include "iscsi.hpp"
 #include "client.hpp"
 
 #include "d8u/string_switch.hpp"
+#include "d8u/string.hpp"
 
 using namespace mhttp;
 using namespace d8u;
 
+#include "volrng/iscsi_win.hpp"
+
+//Wireshark replay to compair and iron out bugs
+void iscsi_replay(std::string_view file)
+{
+    iscsi::ISCSIConnection dummy;
+    mio::mmap_source replay(file);
+
+    Helper stream(replay);
+
+    bool is_data_same;
+    bool is_length_same;
+    bool is_header_same;
+
+    std::vector<uint8_t> buffer(100 * 1024 * 1024);
+    size_t count = 0;
+
+    while (stream.size() && *stream.data() != '\n')
+    {
+        count++;
+
+        auto _read = stream.GetLine2();
+        auto rcmd = _read.GetWord();
+
+        if (rcmd != std::string_view("Read:"))
+            std::cout << "Fix Read" << std::endl;
+
+        auto read = d8u::util::to_bin(_read);
+        stream.GetLine2();
+
+        auto res = iscsi::ISCSIBaseCommands(dummy, gsl::span<uint8_t>(read.data(), read.size()), [&](uint64_t sector, uint32_t count, auto&& cb)
+        {
+            cb(sector, count, gsl::span<uint8_t>(buffer.data() + sector * 512, count * 512));
+        }, [&](uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
+        {
+            std::copy(data.begin(), data.end(), buffer.begin() + sector * 512);
+        });
+
+        if (!res)
+            std::cout << "Not implemented" << std::endl;
+
+        size_t count = 0;
+        while (dummy.queue.size())
+        {
+            std::vector<uint8_t> response, payload;
+            dummy.TryWrite(response);
+            dummy.TryWrite(payload);
+
+            if (payload.size())
+                response.insert(response.end(), payload.begin(), payload.end());
+
+            auto _write = stream.GetLine2();
+            auto wcmd = _write.GetWord();
+
+            if (wcmd != std::string_view("Write:"))
+                std::cout << "Fix Write" << std::endl;
+
+            auto write = d8u::util::to_bin(_write);
+            stream.GetLine2();
+
+            is_data_same = is_length_same = write.size() == response.size();
+            if (is_length_same)
+                is_data_same = std::equal(response.begin() + 48, response.end(), write.begin() + 48);
+            is_header_same = std::equal(response.begin(), response.begin() + 48, write.begin());
+
+            if (!is_header_same)
+            {
+                bool only_size_delta = true;
+                for (size_t i = 0; i < 48; i++)
+                {
+                    if (i == 5 || i == 6 || i == 7)
+                        continue; //Ignore Payload Differences
+
+                    if (i > 24 && i < 36)
+                        continue; //Ignore Sequencing
+
+                    if (response[i] != write[i])
+                    {
+                        only_size_delta = false;
+                        break;
+                    }
+                }
+
+                if (!only_size_delta)
+                {
+                    std::cout << "Expected: " << std::string_view(_write.c_str(), 48 * 2) << std::endl;
+                    std::cout << "Actual:   " << d8u::util::to_hex(gsl::span<uint8_t>(response.data(), 48)) << std::endl << std::endl;
+                }
+            }
+
+            if (is_length_same && response.size() > 255);
+            else if (!is_data_same)
+            {
+                std::cout << "Expected Data (STR): " << std::string_view((char*)(write.data() + 48), write.size() - 48) << std::endl;
+                std::cout << "Actual Data (STR):   " << std::string_view((char*)(response.data() + 48), response.size() - 48) << std::endl << std::endl;
+
+                std::cout << "Expected Data (HEX): " << d8u::util::to_hex(gsl::span<uint8_t>(write.data() + 48, write.size() - 48)) << std::endl;
+                std::cout << "Actual Data (HEX):   " << d8u::util::to_hex(gsl::span<uint8_t>(response.data() + 48, response.size() - 48)) << std::endl << std::endl;
+            }
+
+            count++;
+        }
+    }
+}
+
+TEST_CASE("iscsi replay", "[mhttp::]")
+{
+    //iscsi_replay("create.txt");
+    //iscsi_replay("initialize.txt");
+    //iscsi_replay("format.txt");
+    //iscsi_replay("filecopy.txt");
+
+    //iscsi_replay("iscsi_test3.txt");
+    //iscsi_replay("iscsi_test2.txt");
+    //iscsi_replay("iscsi_test.txt");
+}
+
+TEST_CASE("iscsi basics", "[mhttp::]")
+{
+    std::vector<uint8_t> buffer(100 * 1024 * 1024);
+
+    auto tcp = iscsi::make_iscsi_server("3260", [&](uint64_t sector, uint32_t count, auto&& cb)
+    {
+        auto block = gsl::span<uint8_t>(buffer.data() + sector * 512, count * 512);
+
+        //std::cout << "Read:" << sector << " " << count << std::endl;
+        //std::cout << util::to_hex(block) << std::endl;
+
+        cb(sector, count, block);
+    }, [&](uint64_t sector, uint32_t count, gsl::span<uint8_t> data)
+    {
+        //std::cout << "Write:" << sector << " " << count << std::endl;
+
+        std::copy(data.begin(), data.end(), buffer.begin() + sector * 512);
+    },
+    {false,100 * 1024 * 1024 /512, 512, "RamDisk100"});
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
+    volrng::win::ISCSIClient::LogoutAll("127.0.0.1");
+
+    volrng::win::ISCSIClient::EnumerateTargets("", [](std::string_view target) 
+    {
+        std::cout << target << std::endl;
+    });
+
+    volrng::win::ISCSIClient::Login("", "ramdisk100");
+
+    volrng::win::ISCSIClient::EnumerateMappings("", [](std::string_view session, std::string_view target, std::string_view device)
+    {
+        std::cout << session << " " << device << " " << target << std::endl;
+    });
+
+    volrng::win::ISCSIClient::EnumerateSessions("", [](auto & map)
+    {
+        if (map["Target Name"] == std::string_view("ramdisk100"))
+        {
+            std::cout << map["Legacy Device Name"] << std::endl;
+            volrng::win::ISCSIClient::Partition(std::string_view(&map["Legacy Device Name"].back(),1), "Z");
+        }
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000 * 60 * 30));
+}
+
 TEST_CASE("ftp basics", "[mhttp::]")
 {
-    auto tcp = make_ftp_server("127.0.0.1","8999","8777", [&](auto& c,std::string_view enum_path,auto cb)
+    auto tcp = ftp::make_ftp_server("127.0.0.1","8999","8777", [&](auto& c,std::string_view enum_path,auto cb)
     {
         //enumerate
         cb(true, 0, 0, "folder1");

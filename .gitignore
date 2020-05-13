@@ -2,3 +2,10 @@
 .vs/*
 x64/*
 test/*
+create.txt
+filecopy.txt
+format.txt
+initialize.txt
+iscsi_test.txt
+iscsi_test2.txt
+iscsi_test3.txt

@@ -32,7 +32,7 @@ namespace mhttp
 			return join_memory(_proto, _space, status, _newline, headers..., _content_length, std::to_string(contents.size()), _eof, contents);
 		}
 
-		template < typename T, typename ... t_args > static std::vector<uint8_t> FormatHttpRequest(std::string_view command, const string_view path, const T & contents, t_args...headers)
+		template < typename T, typename ... t_args > static std::vector<uint8_t> FormatHttpRequest(std::string_view command, const std::string_view path, const T & contents, t_args...headers)
 		{
 			return join_memory(command, _space, path, _space, _proto, _newline, headers..., _content_length, std::to_string(contents.size()), _eof, contents);
 		}
@@ -151,14 +151,14 @@ namespace mhttp
 		}
 	};
 
-	template < typename F > auto make_http_server(const string_view port, F && f, size_t threads = 1, bool mplex = false)
+	template < typename F > auto make_http_server(const std::string_view port, F && f, size_t threads = 1, bool mplex = false)
 	{
-		auto on_connect = [](const auto& c) { return make_pair(true, true); };
+		auto on_connect = [](const auto& c) { return std::make_pair(true, true); };
 		auto on_disconnect = [](const auto& c) {};
 		auto on_error = [](const auto& c) {};
 		auto on_write = [](const auto& mc, const auto& c) {};
 
-		return TcpServer<>((uint16_t)stoi(port.data()), ConnectionType::http, on_connect, on_disconnect, [f = std::move(f)](auto * server,auto* _client, auto&& _request, auto body,auto * mplex)
+		return TcpServer<>((uint16_t)std::stoi(port.data()), ConnectionType::http, on_connect, on_disconnect, [f = std::move(f)](auto * server,auto* _client, auto&& _request, auto body,auto * mplex)
 		{
 			//On Request:
 			//

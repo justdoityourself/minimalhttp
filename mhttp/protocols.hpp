@@ -13,23 +13,28 @@
 
 #include "../gsl-lite.hpp"
 #include "d8u/buffer.hpp"
+#include "d8u/encode.hpp"
+#include "d8u/hash.hpp"
 
 namespace mhttp
 {
-	using namespace std;
 	using namespace d8u::buffer;
+
+	class FTP;
+	class Websocket;
 
 	class Common
 	{
 	public:
-
 		template < typename C, typename T > static bool Initialize(C& c, T type) 
 		{ 
 			switch (type)
 			{
 			case ConnectionType::ftp:
-				c.Write(std::string_view("220 Template FTP Server Core Ready.\r\n"));
-				return true;
+				return ftp_init(c);
+			case ConnectionType::websocket_sz:
+			case ConnectionType::websocket: 
+				return ws_init(c);
 			default:
 				return true;
 			}
@@ -180,7 +185,7 @@ namespace mhttp
 			std::map<std::string_view, std::string_view> headers;
 		};
 
-		static Response ParseResponse(vector<uint8_t> && _m, gsl::span<uint8_t> body)
+		static Response ParseResponse(std::vector<uint8_t> && _m, gsl::span<uint8_t> body)
 		{
 			Response result;
 
@@ -363,9 +368,236 @@ RETRY:
 		}
 	};
 
+	class Websocket
+	{
+	public:
+		static constexpr uint8_t ws_text = 129;
+		static constexpr uint8_t ws_binary = 130;
+		static constexpr uint8_t ws_disconnect = 136;
+
+		static constexpr uint8_t ws_small_message = 126;
+		static constexpr uint8_t ws_large_message = 127;
+
+		template < typename C > static bool Initialize(C& c)
+		{
+			bool valid = true;
+			try
+			{
+				std::array<uint8_t, 8 * 1024> data;
+				int length = 0;
+
+				while (true)
+				{
+					length += c.Receive(gsl::span<uint8_t>(data.data() + length, (uint32_t)data.size() - length));
+
+					if (length > 4)
+					{
+						if (*((data.data() + length) - 4) == '\r' 
+								&& *((data.data() + length) - 3) == '\n' 
+								&& *((data.data() + length) - 2) == '\r' 
+								&& *((data.data() + length) - 1) == '\n')
+							break;
+					}
+
+					std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				}
+
+				std::string response;
+
+				std::stringstream stream((char*)&(data)[0]);
+				std::string line;
+				std::map<std::string, std::string> lookup;
+
+				while (std::getline(stream, line, '\n'))
+				{
+					size_t pos = line.find(":", 0);
+					std::string key, value;
+					key = line.substr(0, pos);
+					value = line.substr(pos + 2, -1);
+					lookup[key] = value;
+				}
+
+				std::string security = lookup["Sec-WebSocket-Key"];
+				security.resize(security.find('\r'));
+				security += "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+				std::array<uint8_t, 20> sha1_hash;
+				d8u::hash::sha1(security,sha1_hash);
+
+				response +=
+					"HTTP/1.1 101 Web Socket Protocol Handshake\r\n" \
+					"Upgrade: Websocket\r\n" \
+					"Connection: Upgrade\r\n" \
+					"Sec-WebSocket-Accept: ";
+				response += d8u::encode::base64(sha1_hash);
+				response += "\r\n\r\n";
+
+				c.Write(response);
+			}
+			catch (...)
+			{
+				valid = false;
+			}
+
+			return valid;
+		}
+
+		template < typename C, typename M > static bool Read(C& c, M m, bool& idle)
+		{
+			while (true)
+			{
+				if (c.read_buffer.size())
+				{
+					int r = c.Receive(gsl::span<uint8_t>(c.read_buffer.data() + c.read_offset, c.read_buffer.size() - c.read_offset));
+					if (!r) break;
+
+					if (r == -1)
+					{
+						std::cout << "Socket Fault. (6)" << std::endl;
+						return false;
+					}
+
+					idle = false;
+
+					c.read_offset += r;
+					if (c.read_offset != c.read_buffer.size())
+						return true;
+
+					uint8_t control_code = c.read_buffer.data()[0];
+					bool final_frame = ((control_code >> 7) == 0x1);
+					uint8_t opcode = control_code & 0xf;
+
+					int ml = (int)c.read_buffer.data()[1] & ws_large_message;
+
+					uint8_t* mask;
+					uint32_t message_offset;
+
+					if (ml == ws_small_message)
+					{
+						mask = c.read_buffer.data() + 4;
+						message_offset = 8;
+					}
+
+					else if (ml == ws_large_message)
+					{
+						mask = c.read_buffer.data() + 10;
+						message_offset = 14;
+					}
+					else
+					{
+						mask = c.read_buffer.data() + 2;
+						message_offset = 6;
+					}
+
+					ml = (int)(c.read_buffer.size() - message_offset);
+
+					if (*mask)
+						for (int j = 0; j < ml; j++)
+							c.read_buffer.data()[j + message_offset] ^= mask[j % 4];
+
+					c.read_count++;
+					c.read_bytes += c.read_buffer.size();
+					m(c, std::move(c.read_buffer), gsl::span<uint8_t>(c.read_buffer.data() + message_offset, c.read_buffer.size() - message_offset));
+
+					c.read_offset = 0;
+				}
+				else
+				{
+					uint16_t header;
+					uint16_t sm;
+					uint64_t lg;
+
+					int control_length = c.Receive(gsl::span<uint8_t>((uint8_t*)&header, sizeof(uint16_t)));
+					if (!control_length) break;
+
+					if (control_length != 2)
+					{
+						std::cout << "Header Fault. (5)" << std::endl;
+						return false;
+					}
+
+					uint8_t control_code = ((uint8_t*)(&header))[0];
+					bool final_frame = ((control_code >> 7) == 0x1);
+					uint8_t opcode = control_code & 0xf;
+
+					if (8 == opcode)
+					{
+						std::cout << "Client Side Termination. (4)" << std::endl;
+						return false;
+					}
+
+					//if (9 == opcode); //Unsupported websocket ping
+
+					int ml = (int)((uint8_t*)(&header))[1] & ws_large_message;
+
+					if (ml == ws_small_message)
+					{
+						control_length += c.Receive(gsl::span<uint8_t>((uint8_t*)&sm, sizeof(uint16_t)));
+
+						if (control_length != 4)
+						{
+							std::cout << "Header Fragmented. (1)" << std::endl;
+							return false;
+						}
+
+						uint8_t* i = (uint8_t*)&sm;
+						ml = 0;
+
+						for (uint32_t j = 0; j < 2; j++)
+							ml += i[j] << (8 * (1 - j));
+					}
+
+					else if (ml == ws_large_message)
+					{
+						control_length += c.Receive(gsl::span<uint8_t>((uint8_t*)&lg, sizeof(uint64_t)));
+
+						if (control_length != 10)
+						{
+							std::cout << "Header Fragmented. (2)" << std::endl;
+							return false;
+						}
+
+						uint8_t* i = (uint8_t*)&lg;
+						ml = 0;
+
+						for (uint32_t j = 0; j < 8; j++)
+							ml += i[j] << (8 * (7 - j));
+					}
+
+					if (ml > 10 * 1024 * 1024) //Max message segment
+					{
+						std::cout << "Message Exceeded Maximum. (3)" << std::endl;
+						return false;
+					}
+
+					idle = false;
+
+					c.read_buffer.resize(ml + 4);
+					*((uint16_t*)c.read_buffer.data()) = header;
+					if (control_length == 4) *((uint16_t*)(c.read_buffer.data()+2)) = sm;
+					else if (control_length == 10) *((uint64_t*)(c.read_buffer.data() + 2)) = lg;
+					c.read_offset = control_length;
+				}
+			}
+
+			return true;
+		}
+
+		template < typename C, typename M > static bool Write(C& c, M m, bool& idle)
+		{
+			return Common::WriteRaw(c, m, idle);
+		}
+	};
+
 	class FTP
 	{
 	public:
+
+		template < typename C > static bool Initialize(C& c)
+		{
+			c.Write(std::string_view("220 Template FTP Server Core Ready.\r\n"));
+			return true;
+		}
 
 		template < typename C, typename M > static bool Read(C& c, M m, bool& idle, bool talk = false)
 		{
@@ -525,6 +757,80 @@ RETRY:
 		}
 	};
 
+	class ISCSI
+	{
+	public:
+		template < typename C, typename M > static bool Read(C& c, M m, bool& idle)
+		{
+			while (true)
+			{
+				if (c.read_buffer.size())
+				{
+					auto r = c.Receive(gsl::span<uint8_t>(c.read_buffer.data() + c.read_offset, c.read_buffer.size() - c.read_offset));
+
+					if (!r)
+						break;
+
+					if (r == -1)
+						return false; //error
+
+					idle = false;
+
+					c.read_offset += r;
+
+					if (c.read_offset != c.read_buffer.size())
+						return true;
+
+					m(c, std::move(c.read_buffer), gsl::span<uint8_t>(c.read_buffer));
+
+					c.read_count++;
+					c.read_bytes += c.read_buffer.size();
+
+					c.read_offset = 0;
+
+					if (!c.Multiplex()) break;
+				}
+				else
+				{
+					static constexpr size_t header_size = 48;
+
+					uint64_t _peek = 0;
+					int header_length = c.ReadIf(gsl::span<uint8_t>((uint8_t*)&_peek, sizeof(uint64_t)));
+
+					if (!header_length)
+						break;
+
+					if (header_length != 8)
+						return false;
+
+					gsl::span<uint8_t> peek((uint8_t*)&_peek,8);
+					uint8_t ahsl = peek[4];
+					int dataseg = peek[5] << 16 | peek[6] << 8 | peek[7];
+
+					size_t ml = header_size + ahsl + dataseg;
+					if(ml % 4)
+						ml += 4 - ml % 4;
+
+					if (ml > 8 * 1024 * 1024)
+						return false;
+
+					idle = false;
+
+					c.read_buffer.resize(ml);
+					c.read_offset = 8;
+					std::copy(peek.begin(),peek.end(),c.read_buffer.begin());
+				}
+			}
+
+			return true;
+		}
+
+		template < typename C, typename M > static bool Write(C& c, M m, bool& idle)
+		{
+			return Common::WriteRaw(c, m, idle);
+		}
+	};
+
 	class Map32
 	{
 	public:
@@ -637,6 +943,11 @@ RETRY:
 	{
 		switch (i.type)
 		{
+		case ConnectionType::websocket_sz:
+		case ConnectionType::websocket:
+			return Websocket::Write(i, m, idle);
+		case ConnectionType::iscsi:
+			return ISCSI::Write(i, m, idle);
 		case ConnectionType::ftp:
 		case ConnectionType::ftp_data:
 			return FTP::Write(i, m, idle);
@@ -663,6 +974,11 @@ RETRY:
 	{
 		switch (i.type)
 		{
+		case ConnectionType::websocket_sz:
+		case ConnectionType::websocket:
+			return Websocket::Read(i, m, idle);
+		case ConnectionType::iscsi:
+			return ISCSI::Read(i, m, idle);
 		case ConnectionType::ftp:
 		case ConnectionType::ftp_data:
 			return FTP::Read(i, m, idle);
@@ -681,5 +997,15 @@ RETRY:
 		default:
 			return false;
 		}
+	}
+
+	template < typename C > bool ftp_init(C& c)
+	{
+		return FTP::Initialize(c);
+	}
+
+	template < typename C > bool ws_init(C& c)
+	{
+		return Websocket::Initialize(c);
 	}
 };

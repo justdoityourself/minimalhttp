@@ -74,6 +74,9 @@
     <ClInclude Include="mhttp\ftp.hpp">
       <Filter>mhttp</Filter>
     </ClInclude>
+    <ClInclude Include="mhttp\iscsi.hpp">
+      <Filter>mhttp</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />

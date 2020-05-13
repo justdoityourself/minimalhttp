@@ -30,7 +30,7 @@ namespace mhttp
 			T::Disconnect();
 		}
 
-		ThreadedClientT(string_view host, ConnectionType type, callback_t _read, bool writer_thread = true)
+		ThreadedClientT(std::string_view host, ConnectionType type, callback_t _read, bool writer_thread = true)
 			: T(host,type)
 			, read(_read)
 			, reader([&]()
@@ -127,7 +127,7 @@ namespace mhttp
 			T::Disconnect();
 		}
 
-		EventClientT(string_view host, ConnectionType type, bool writer_thread = true)
+		EventClientT(std::string_view host, ConnectionType type, bool writer_thread = true)
 			: T(host,type)
 			, reader([&, v = host.size() != 0]()
 			{

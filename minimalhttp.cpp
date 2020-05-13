@@ -23,13 +23,12 @@ int main(int argc, char* argv[])
 #include <string>
 #include "clipp.h"
 
-using namespace std;
 using namespace clipp;
 
 int main(int argc, char* argv[])
 {
     bool mount = false, dismount = false, step = false, validate = false;
-    string path = "test";
+    std::string path = "test";
     int size = 1;
 
     auto cli = (
@@ -50,7 +49,7 @@ int main(int argc, char* argv[])
     }
     catch (const exception & ex)
     {
-        cerr << ex.what() << endl;
+        std::cerr << ex.what() << endl;
         return -1;
     }
 

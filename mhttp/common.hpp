@@ -9,9 +9,7 @@
 
 namespace mhttp
 {
-	using namespace std;
-
-	enum class ConnectionType { map32client, datagram, http, ftp, ftp_data, invalid, message, readmap32, map32, writemap32 };
+	enum class ConnectionType { websocket, websocket_sz, map32client, datagram, iscsi, http, ftp, ftp_data, invalid, message, readmap32, map32, writemap32 };
 
 	typedef zed_net_address_t TcpAddress;
 
@@ -24,16 +22,16 @@ namespace mhttp
 
 	void EnableNetworking() { static NetworkInstance net; }
 
-	std::pair<std::string, std::string> address_split(const string_view target, const std::string del = ":")
+	std::pair<std::string, std::string> address_split(const std::string_view target, const std::string del = ":")
 	{
 		auto d = target.find(del);
-		return std::make_pair(string(target.substr(0, d)), string(target.substr(d + 1)));
+		return std::make_pair(std::string(target.substr(0, d)), std::string(target.substr(d + 1)));
 	}
 
-	std::pair<std::string, int> address_split2(const string_view target, const std::string del = ":")
+	std::pair<std::string, int> address_split2(const std::string_view target, const std::string del = ":")
 	{
 		auto d = target.find(del);
-		return std::make_pair(string(target.substr(0, d)), std::stoi(target.substr(d + 1).data()));
+		return std::make_pair(std::string(target.substr(0, d)), std::stoi(target.substr(d + 1).data()));
 	}
 
 	/*bool IsIpAddress(const std::string & s)
@@ -47,7 +45,7 @@ namespace mhttp
 		return true;
 	}*/
 
-	template < typename F, typename M > int zed_net_get_address(const string_view address, M m, F f)
+	template < typename F, typename M > int zed_net_get_address(const std::string_view address, M m, F f)
 	{
 		std::string host, port; std::tie(host, port) = address_split(address);
 

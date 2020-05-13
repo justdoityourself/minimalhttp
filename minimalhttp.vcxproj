@@ -107,7 +107,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Test|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\d8u;$(IncludePath)</IncludePath>
+    <IncludePath>..\common\cryptopp8.2;..\volrng;..\d8u;$(IncludePath)</IncludePath>
+    <LibraryPath>..\common\cryptopp8.2\CryptoPP\x64\Output\Debug;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -169,10 +170,13 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
+      <AdditionalDependencies>cryptlib.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -222,6 +226,7 @@
     <ClInclude Include="mhttp\connections.hpp" />
     <ClInclude Include="mhttp\ftp.hpp" />
     <ClInclude Include="mhttp\http.hpp" />
+    <ClInclude Include="mhttp\iscsi.hpp" />
     <ClInclude Include="mhttp\listener.hpp" />
     <ClInclude Include="mhttp\platform.hpp" />
     <ClInclude Include="mhttp\protocols.hpp" />

@@ -147,6 +147,7 @@ namespace mhttp
 		return (int)s.size();
 	}
 
+	//TODO MAKE subclass of TCP
 	class SSLConnection
 	{
 	protected:
