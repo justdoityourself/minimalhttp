@@ -330,7 +330,7 @@ static int zed_net__error(const char *message) {
 		struct sockaddr_in address;
 		address.sin_family = AF_INET;
 		address.sin_addr.s_addr = INADDR_ANY;
-		address.sin_port = htons(port);
+		address.sin_port = htons((unsigned short)port);
 
 		if (bind(sock->handle, (const struct sockaddr *) &address, sizeof(struct sockaddr_in)) != 0) {
 			zed_net_socket_close(sock);
