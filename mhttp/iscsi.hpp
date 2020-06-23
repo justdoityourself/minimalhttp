@@ -449,6 +449,7 @@ namespace mhttp
 			uint64_t blocks = 0;
 			uint32_t block_size = 512;
 			std::string target_name = "MinimalHTTPDefault";
+			void* ext = nullptr;
 		};
 
 		class ISCSIConnection : public sock_t
@@ -992,7 +993,7 @@ namespace mhttp
 			return false;
 		}
 
-		template < typename LOGIN, typename LOGOUT, typename READ, typename WRITE, typename FLUSH > auto make_iscsi_server(std::string_view port, LOGIN && on_login, LOGOUT && on_logout,READ &&on_read, WRITE &&on_write, FLUSH&& on_flush, const basic_disk& bd = basic_disk(), size_t threads = 1, bool mplex = false)
+		template < typename LOGIN, typename LOGOUT, typename READ, typename WRITE, typename FLUSH > auto make_iscsi_server(std::string_view port, LOGIN && on_login, LOGOUT && on_logout,READ &&on_read, WRITE &&on_write, FLUSH&& on_flush, const basic_disk& bd, size_t threads = 1, bool mplex = false)
 		{
 			auto on_connect = [](const auto& c) { return std::make_pair(true, true); };
 
@@ -1037,7 +1038,7 @@ namespace mhttp
 			on_iscsi_logout on_logout;
 
 		public:
-			iScsiServer(on_iscsi_login _on_login, on_iscsi_logout _on_logout, on_iscsi_read _on_read, on_iscsi_write _on_write, on_iscsi_flush _on_flush, const basic_disk& bd = basic_disk(),TcpServer::Options o = TcpServer::Options())
+			iScsiServer(on_iscsi_login _on_login, on_iscsi_logout _on_logout, on_iscsi_read _on_read, on_iscsi_write _on_write, on_iscsi_flush _on_flush, const basic_disk& bd,TcpServer::Options o = TcpServer::Options())
 				: on_read(_on_read)
 				, on_write(_on_write)
 				, on_flush(_on_flush)
@@ -1062,7 +1063,7 @@ namespace mhttp
 				on_logout(*((ISCSIConnection*)&c));
 			}, o) { }
 
-			iScsiServer(std::string_view port, on_iscsi_login _on_login, on_iscsi_logout _on_logout, on_iscsi_read _on_read, on_iscsi_write _on_write, on_iscsi_flush _on_flush,  const basic_disk& bd = basic_disk(), bool mplex = false, TcpServer::Options o = TcpServer::Options())
+			iScsiServer(std::string_view port, on_iscsi_login _on_login, on_iscsi_logout _on_logout, on_iscsi_read _on_read, on_iscsi_write _on_write, on_iscsi_flush _on_flush,  const basic_disk& bd, bool mplex = false, TcpServer::Options o = TcpServer::Options())
 				: iScsiServer( _on_login,_on_logout, _on_read, _on_write, _on_flush, bd, o)
 			{
 				Open(port,"",mplex);
