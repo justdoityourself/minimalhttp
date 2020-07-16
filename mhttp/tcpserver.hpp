@@ -15,9 +15,11 @@
 
 #include "../gsl-lite.hpp"
 
+#include "d8u/memory.hpp"
+
 namespace mhttp
 {
-	using event_p = std::tuple< void*, sock_t*, std::vector<uint8_t>, gsl::span<uint8_t>, void* >;
+	using event_p = std::tuple< void*, sock_t*, d8u::sse_vector, gsl::span<uint8_t>, void* >;
 
 	template < typename CT = sock_t > class TcpServer : public ThreadHub
 		, private TcpWriter
@@ -176,7 +178,7 @@ namespace mhttp
 			OnWrite(c, s);
 		}
 
-		void RawMessage(sock_t& c, std::vector<uint8_t>&& v, gsl::span<uint8_t> s)
+		void RawMessage(sock_t& c, d8u::sse_vector&& v, gsl::span<uint8_t> s)
 		{
 			if (!v.size())
 			{

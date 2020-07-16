@@ -27,12 +27,12 @@ namespace mhttp
 			sock_t::Connect(host, type);
 		}
 
-		template < typename T, typename ... t_args > static std::vector<uint8_t> FormatHttpResponse(std::string_view status, const T & contents, t_args...headers)
+		template < typename T, typename ... t_args > static d8u::sse_vector FormatHttpResponse(std::string_view status, const T & contents, t_args...headers)
 		{
 			return join_memory(_proto, _space, status, _newline, headers..., _content_length, std::to_string(contents.size()), _eof, contents);
 		}
 
-		template < typename T, typename ... t_args > static std::vector<uint8_t> FormatHttpRequest(std::string_view command, const std::string_view path, const T & contents, t_args...headers)
+		template < typename T, typename ... t_args > static d8u::sse_vector FormatHttpRequest(std::string_view command, const std::string_view path, const T & contents, t_args...headers)
 		{
 			return join_memory(command, _space, path, _space, _proto, _newline, headers..., _content_length, std::to_string(contents.size()), _eof, contents);
 		}

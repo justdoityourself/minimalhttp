@@ -64,7 +64,7 @@ namespace mhttp
 					c.write_count++;
 					c.write_bytes += c.write_buffer.size();
 
-					c.write_buffer = std::vector<uint8_t>();
+					c.write_buffer = d8u::sse_vector();
 					c.write_offset = 0;
 				}
 				
@@ -105,7 +105,7 @@ namespace mhttp
 					c.write_count++;
 					c.write_bytes += c.write_buffer.size();
 
-					c.write_buffer = std::vector<uint8_t>();
+					c.write_buffer = d8u::sse_vector();
 					c.write_offset = 0;
 				}
 
@@ -128,14 +128,14 @@ namespace mhttp
 			std::string_view proto;
 			std::string_view command;
 
-			std::vector<uint8_t> raw;
+			d8u::sse_vector raw;
 			gsl::span<uint8_t> body;
 
 			std::map<std::string_view, std::string_view> headers;
 			std::map<std::string_view, std::string_view> parameters;
 		};
 
-		static Request ParseRequest(std::vector<uint8_t> && _m, gsl::span<uint8_t> body)
+		static Request ParseRequest(d8u::sse_vector && _m, gsl::span<uint8_t> body)
 		{
 			Request result;
 
@@ -177,7 +177,7 @@ namespace mhttp
 			std::string_view _status;
 			std::string_view msg;
 
-			std::vector<uint8_t> raw;
+			d8u::sse_vector raw;
 			gsl::span<uint8_t> body;
 
 			int status = 0;
@@ -185,7 +185,7 @@ namespace mhttp
 			std::map<std::string_view, std::string_view> headers;
 		};
 
-		static Response ParseResponse(std::vector<uint8_t> && _m, gsl::span<uint8_t> body)
+		static Response ParseResponse(d8u::sse_vector && _m, gsl::span<uint8_t> body)
 		{
 			Response result;
 
@@ -213,9 +213,9 @@ namespace mhttp
 			return result;
 		}
 
-		template <typename C > static std::pair<std::vector<uint8_t>, gsl::span<uint8_t> > ReadResponse(C & c)
+		template <typename C > static std::pair<d8u::sse_vector, gsl::span<uint8_t> > ReadResponse(C & c)
 		{
-			std::pair<std::vector<uint8_t>, gsl::span<uint8_t> > result;
+			std::pair<d8u::sse_vector, gsl::span<uint8_t> > result;
 			bool finished = false;
 
 			auto start = std::chrono::high_resolution_clock::now();
@@ -230,7 +230,7 @@ namespace mhttp
 				if(10 < count)
 					throw std::runtime_error("timeout");
 
-				if(!Read(c,[&](auto & c, std::vector<uint8_t> && r, gsl::span<uint8_t> m)
+				if(!Read(c,[&](auto & c, d8u::sse_vector && r, gsl::span<uint8_t> m)
 				{
 					finished = true;
 					result = std::make_pair(std::move(r),m);
@@ -256,7 +256,7 @@ namespace mhttp
 						This condition occurs only when the connection is being used for multiplexing.
 					*/
 
-					std::vector<uint8_t> remainder; remainder.reserve(buffer_size);
+					d8u::sse_vector remainder; remainder.reserve(buffer_size);
 
 					remainder.insert(remainder.end(), c.read_buffer.data() + end, c.read_buffer.data() + c.read_offset);
 
@@ -611,7 +611,7 @@ RETRY:
 						This condition occurs only when the connection is being used for multiplexing.
 					*/
 
-					std::vector<uint8_t> remainder; remainder.reserve(buffer_size);
+					d8u::sse_vector remainder; remainder.reserve(buffer_size);
 
 					remainder.insert(remainder.end(), c.read_buffer.data() + end, c.read_buffer.data() + c.read_offset);
 
@@ -738,7 +738,7 @@ RETRY:
 						return false;
 
 					if (!ml)
-						m(c, std::vector<uint8_t>(), gsl::span<uint8_t>()); //Ping
+						m(c, d8u::sse_vector(), gsl::span<uint8_t>()); //Ping
 					else if(ml > 8*1024*1024)
 						return false;
 
@@ -840,7 +840,7 @@ RETRY:
 			return std::make_pair(*((uint32_t*)t.data()), gsl::span<uint8_t>(((uint8_t*)t.data()) + sizeof(uint32_t), t.size() - sizeof(uint32_t)));
 		}
 
-		/*template < typename T > static std::vector<uint8_t> MakeHeader(const T& t, size_t sz)
+		/*template < typename T > static d8u::sse_vector MakeHeader(const T& t, size_t sz)
 		{
 			return std::make_pair(*((uint32_t*)t.data()), gsl::span<uint8_t>(((uint8_t*)t.data()) + sizeof(uint32_t), t.size() - sizeof(uint32_t)));
 		}*/
@@ -867,9 +867,9 @@ RETRY:
 					{
 						if (*((uint32_t*)c.read_buffer.data()) == 0)
 						{
-							m(c, std::vector<uint8_t>(), gsl::span<uint8_t>());
+							m(c, d8u::sse_vector(), gsl::span<uint8_t>());
 							c.read_offset = 0;
-							c.read_buffer = std::vector<uint8_t>();
+							c.read_buffer = d8u::sse_vector();
 							return true;
 						}
 					}

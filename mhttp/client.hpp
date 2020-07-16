@@ -16,7 +16,7 @@ namespace mhttp
 		std::thread writer;
 		bool run = true;
 
-		using callback_t = std::function<void( std::vector < uint8_t > , gsl::span<uint8_t> )>;
+		using callback_t = std::function<void( d8u::sse_vector , gsl::span<uint8_t> )>;
 
 		callback_t read;
 
@@ -43,7 +43,7 @@ namespace mhttp
 				while(run)
 				{
 					bool idle = true;
-					if (!DoRead(*this, [&](T & c, std::vector<uint8_t> v, gsl::span<uint8_t> s)
+					if (!DoRead(*this, [&](T & c, d8u::sse_vector v, gsl::span<uint8_t> s)
 						{
 							read(std::move(v), s);
 
@@ -90,7 +90,7 @@ namespace mhttp
 		std::thread writer;
 		bool run = true;
 
-		using callback_t = std::function<void( std::vector < uint8_t > , gsl::span<uint8_t> )>;
+		using callback_t = std::function<void( d8u::sse_vector , gsl::span<uint8_t> )>;
 		std::queue< callback_t > read_events;
 
 	public:
@@ -147,7 +147,7 @@ namespace mhttp
 				while(run)
 				{
 					bool idle = true;
-					if (!DoRead(*this, [&](T & c, std::vector<uint8_t> v, gsl::span<uint8_t> s)
+					if (!DoRead(*this, [&](T & c, d8u::sse_vector v, gsl::span<uint8_t> s)
 						{
 							callback_t cb;
 
@@ -212,7 +212,7 @@ namespace mhttp
 					std::cout << "EventClientT Writer EOT" << std::endl;
 			}) {  }
 
-		void AsyncWriteCallback(std::vector<uint8_t>&& v, callback_t &&f)
+		void AsyncWriteCallback(d8u::sse_vector&& v, callback_t &&f)
 		{
 			std::lock_guard<std::mutex> lock(T::ql);
 
@@ -223,16 +223,16 @@ namespace mhttp
 
 		template < typename TT > void AsyncWriteCallbackT(const TT & t, callback_t &&f)
 		{
-			std::vector<uint8_t> v(sizeof(TT));
+			d8u::sse_vector v(sizeof(TT));
 			std::copy((uint8_t*)&t, (uint8_t *)(&t + 1), v.begin());
 
 			AsyncWriteCallback(std::move(v), std::move(f));
 		}
 
-		std::pair<std::vector<uint8_t>,gsl::span<uint8_t>> AsyncWriteWait(std::vector<uint8_t>&& v)
+		std::pair<d8u::sse_vector,gsl::span<uint8_t>> AsyncWriteWait(d8u::sse_vector&& v)
 		{
 			bool ready = false;
-			std::vector<uint8_t> result;
+			d8u::sse_vector result;
 			gsl::span<uint8_t> body;
 
 			{
@@ -256,7 +256,7 @@ namespace mhttp
 
 		template < typename TT > auto AsyncWriteWaitT(const TT& t)
 		{
-			std::vector<uint8_t> v(sizeof(TT));
+			d8u::sse_vector v(sizeof(TT));
 			std::copy((uint8_t*)&t, (uint8_t*)(&t + 1), v.begin());
 
 			return AsyncWriteWait(std::move(v));

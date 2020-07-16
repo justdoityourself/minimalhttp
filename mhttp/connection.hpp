@@ -10,6 +10,8 @@
 #include "common.hpp"
 #include "protocols.hpp"
 
+#include "d8u/memory.hpp"
+
 namespace mhttp
 {
 
@@ -38,7 +40,7 @@ namespace mhttp
 		struct vqueue
 		{
 			bool ready = false;
-			std::vector<uint8_t> message;
+			d8u::sse_vector message;
 		};
 
 		struct squeue
@@ -52,7 +54,7 @@ namespace mhttp
 		std::queue<vqueue> queue;
 		std::queue<squeue> maps;
 
-		bool TryWrite(std::vector<uint8_t>& v)
+		bool TryWrite(d8u::sse_vector& v)
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
@@ -68,7 +70,7 @@ namespace mhttp
 			return true;
 		}
 
-		void ActivateWrite(void* queue, std::vector<uint8_t>&& v)
+		void ActivateWrite(void* queue, d8u::sse_vector&& v)
 		{
 			std::lock_guard<std::mutex> lock(ql);
 			auto pqueue = (vqueue*)queue;
@@ -86,7 +88,7 @@ namespace mhttp
 			return (void*)&queue.back();
 		}
 
-		void AsyncWrite(std::vector<uint8_t>&& v)
+		void AsyncWrite(d8u::sse_vector&& v)
 		{
 			std::lock_guard<std::mutex> lock(ql);
 
@@ -188,13 +190,13 @@ namespace mhttp
 
 		bool read_lock = false;
 		size_t read_offset = 0;
-		std::vector<uint8_t> read_buffer;
+		d8u::sse_vector read_buffer;
 
 		size_t read_count = 0;
 		size_t read_bytes = 0;
 
 		size_t write_offset = 0;
-		std::vector<uint8_t> write_buffer;
+		d8u::sse_vector write_buffer;
 		gsl::span<uint8_t> map;
 
 		size_t write_count = 0;
@@ -209,7 +211,7 @@ namespace mhttp
 				AsyncMap(gsl::span<uint8_t>()); break;
 			case ConnectionType::readmap32:
 			case ConnectionType::message:
-				AsyncWrite(std::vector<uint8_t>()); break;
+				AsyncWrite(d8u::sse_vector()); break;
 			}
 		}
 
@@ -235,10 +237,10 @@ namespace mhttp
 
 	using listen_t = std::function< void(TcpConnection*, TcpAddress, ConnectionType, uint32_t, bool) >;
 	using sock_t = BufferedConnection< TcpConnection >;
-	using io_t = std::function< void(sock_t&, std::vector<uint8_t>&&, gsl::span<uint8_t>) >;
+	using io_t = std::function< void(sock_t&, d8u::sse_vector&&, gsl::span<uint8_t>) >;
 	using on_accept_t = std::function< std::pair<bool, bool>(sock_t&) >;
 	using on_disconnect_t = std::function< void(sock_t&) >;
 	using on_write_t = std::function< void(sock_t&, size_t) >;
 	using on_error_t = std::function< void(sock_t&) >;
-	using on_message_t = std::function< void(void*, sock_t*, std::vector<uint8_t>, gsl::span<uint8_t>, void*) >;
+	using on_message_t = std::function< void(void*, sock_t*, d8u::sse_vector, gsl::span<uint8_t>, void*) >;
 }
