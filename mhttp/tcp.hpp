@@ -80,6 +80,9 @@ namespace mhttp
 
 		bool Connect(const std::string_view s, int timeout = 0,int buffer = 128*1024)
 		{
+			if (!s.size())
+				return false;
+
 			if(-1 == zed_net_get_address(s,SOCK_STREAM,[&](auto s)->bool
 			{
 				this->Close();
@@ -207,7 +210,7 @@ namespace mhttp
 	public:
 		MsgConnection() {}
 
-		MsgConnection(const std::string& s) { Connect(s); }
+		MsgConnection(const std::string_view s) { Connect(s); }
 
 		void Disconnect()
 		{
@@ -223,8 +226,8 @@ namespace mhttp
 		template < typename T > void SendT(const T& t)
 		{
 			uint32_t size = (uint32_t)sizeof(T);
-			Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t)));
-			Write(gsl::span<uint8_t>((uint8_t*)&t, sizeof(T)));
+			if(sizeof(uint32_t) != Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))) || sizeof(T) != Write(gsl::span<uint8_t>((uint8_t*)&t, sizeof(T))))
+				throw std::runtime_error("Socket disconnected");
 		}
 
 		template < typename T > T ReceiveT()
@@ -236,7 +239,8 @@ namespace mhttp
 				throw std::runtime_error("Expected Struct not Sent");
 
 			T result;
-			Read(gsl::span<uint8_t>((uint8_t*)&result, sizeof(T)));
+			if(sizeof(T) != Read(gsl::span<uint8_t>((uint8_t*)&result, sizeof(T))))
+				throw std::runtime_error("Socket disconnected");
 
 			return result;
 		}
@@ -244,17 +248,20 @@ namespace mhttp
 		template < typename T > void SendMessage( const T & t)
 		{
 			uint32_t size = (uint32_t)t.size();
-			Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t)));
-			Write(t);
+
+			if(sizeof(uint32_t) != Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))) || size != Write(t))
+				throw std::runtime_error("Socket disconnected");
 		}
 
-		std::vector<uint8_t> ReceiveMessage()
+		d8u::sse_vector ReceiveMessage()
 		{
 			uint32_t size;
-			Read(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t)));
+			if(sizeof(uint32_t) != Read(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))))
+				throw std::runtime_error("Socket disconnected");
 
-			std::vector<uint8_t> result(size);
-			Read(result);
+			d8u::sse_vector result(size);
+			if(size != Read(result))
+				throw std::runtime_error("Socket disconnected");
 
 			return result;
 		}
@@ -268,9 +275,8 @@ namespace mhttp
 		template < typename ID, typename T > std::vector<uint8_t> Transact32(const ID& id, const T& t)
 		{
 			uint32_t size = (uint32_t)t.size();
-			Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t)));
-			Write(gsl::span<uint8_t>((uint8_t*)id.data(), 32));
-			Write(t);
+			if(sizeof(uint32_t) != Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))) || 32 != Write(gsl::span<uint8_t>((uint8_t*)id.data(), 32)) || size != Write(t))
+				throw std::runtime_error("Socket disconnected");
 
 			return ReceiveMessage();
 		}

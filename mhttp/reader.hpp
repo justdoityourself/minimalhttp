@@ -71,7 +71,7 @@ namespace mhttp
 								idle = false;
 								i.last_message = now;
 							}
-							else if(priority > 60 * 1000 && i.Idle())
+							/*else if(priority > 60 * 1000 && i.Idle())
 							{
 								if (i.type >= ConnectionType::message)
 								{
@@ -89,7 +89,7 @@ namespace mhttp
 									i.reader_fault = true;
 									faults++;
 								}
-							}
+							}*/
 						}
 
 						if(faults)
