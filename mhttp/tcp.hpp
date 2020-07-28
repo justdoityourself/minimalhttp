@@ -7,6 +7,8 @@
 #include <string_view>
 #include <thread>
 
+#include "d8u/memory.hpp"
+
 #include "../gsl-lite.hpp"
 
 

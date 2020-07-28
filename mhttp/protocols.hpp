@@ -218,17 +218,17 @@ namespace mhttp
 			std::pair<d8u::sse_vector, gsl::span<uint8_t> > result;
 			bool finished = false;
 
-			auto start = std::chrono::high_resolution_clock::now();
+			//auto start = std::chrono::high_resolution_clock::now();
 
 			while(!finished)
 			{
 				bool idle = false;
 
-				auto now = std::chrono::high_resolution_clock::now();
+				//auto now = std::chrono::high_resolution_clock::now();
 
-				auto count = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
-				if(10 < count)
-					throw std::runtime_error("timeout");
+				//auto count = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+				//if(10 < count)
+				//	throw std::runtime_error("timeout");
 
 				if(!Read(c,[&](auto & c, d8u::sse_vector && r, gsl::span<uint8_t> m)
 				{

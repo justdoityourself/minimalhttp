@@ -178,7 +178,7 @@ namespace mhttp
 	}
 
 
-	using on_http_t = std::function < void(HttpConnection&, Http::Request, void*)>;
+	using on_http_t = std::function < void(HttpConnection&, Http::Request&&, void*)>;
 
 	class HttpServer : public TcpServer<>
 	{
