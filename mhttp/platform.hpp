@@ -143,6 +143,7 @@ typedef struct {
 #include <fcntl.h>
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
+#define SD_BOTH 2
 #endif
 
 static const char *zed_net__g_error;
