@@ -145,7 +145,7 @@ namespace mhttp
 				auto sent = zed_net_tcp_socket_send(&socket, t.data() + offset, (int)t.size() - offset);
 
 				if (!send && !offset)
-					return;
+					return 0;
 
 				if (sent == -1)
 					return -1;
@@ -268,13 +268,13 @@ namespace mhttp
 			return result;
 		}
 
-		template < typename T > std::vector<uint8_t> Transact(const T& t)
+		template < typename T > d8u::sse_vector Transact(const T& t)
 		{
 			SendMessage(t);
 			return ReceiveMessage();
 		}
 
-		template < typename ID, typename T > std::vector<uint8_t> Transact32(const ID& id, const T& t)
+		template < typename ID, typename T > d8u::sse_vector Transact32(const ID& id, const T& t)
 		{
 			uint32_t size = (uint32_t)t.size();
 			if(sizeof(uint32_t) != Write(gsl::span<uint8_t>((uint8_t*)&size, sizeof(uint32_t))) || 32 != Write(gsl::span<uint8_t>((uint8_t*)id.data(), 32)) || size != Write(t))
