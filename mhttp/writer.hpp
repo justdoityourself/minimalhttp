@@ -9,6 +9,8 @@
 #include "tcp.hpp"
 #include "protocols.hpp"
 
+#include "d8u/util.hpp"
+
 namespace mhttp
 {
 	class TcpWriter
@@ -66,6 +68,7 @@ namespace mhttp
 								{
 									try
 									{
+										d8u::trace("Connection Writer Error:", (*i)->uid);
 										OnError(*(*i));
 									}
 									catch(...)

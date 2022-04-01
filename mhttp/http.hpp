@@ -65,6 +65,16 @@ namespace mhttp
 			ActivateWrite(queue,FormatHttpResponse("200 OK", gsl::span<uint8_t>(), headers...));
 		}
 
+		template < typename ... t_args > void Http201A(void* queue, t_args...headers)
+		{
+			ActivateWrite(queue, FormatHttpResponse("201 Created", gsl::span<uint8_t>(), headers...));
+		}
+
+		template < typename ... t_args > void Http202A(void* queue, t_args...headers)
+		{
+			ActivateWrite(queue, FormatHttpResponse("202 Accepted", gsl::span<uint8_t>(), headers...));
+		}
+
 		template < typename T, typename ... t_args > void ResponseA(void* queue, std::string_view status, const T& contents, t_args...headers)
 		{
 			ActivateWrite(queue, FormatHttpResponse(status, contents, headers...));
@@ -78,6 +88,16 @@ namespace mhttp
 		template < typename ... t_args > void Http404A(void* queue, t_args...headers)
 		{
 			ActivateWrite(queue, FormatHttpResponse("404 Not Found", gsl::span<uint8_t>(), headers...));
+		}
+
+		template < typename ... t_args > void Http409A(void* queue, t_args...headers)
+		{
+			ActivateWrite(queue, FormatHttpResponse("409 Conflict", gsl::span<uint8_t>(), headers...));
+		}
+
+		template < typename ... t_args > void Http405A(void* queue, t_args...headers)
+		{
+			ActivateWrite(queue, FormatHttpResponse("405 Method Not Allowed", gsl::span<uint8_t>(), headers...));
 		}
 
 
@@ -196,7 +216,10 @@ namespace mhttp
 				}
 				catch (...)
 				{
-					client.Http400();
+					if(mplex)
+						client.Http400A(mplex);
+					else
+						client.Http400();
 				}
 
 			},o) { }

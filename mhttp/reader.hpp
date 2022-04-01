@@ -7,6 +7,8 @@
 #include "tcp.hpp"
 #include "protocols.hpp"
 
+#include "d8u/util.hpp"
+
 namespace mhttp
 {
 	class TcpReader
@@ -100,6 +102,7 @@ namespace mhttp
 								{
 									try
 									{
+										d8u::trace("Connection Reader Error:", (*i)->uid);
 										OnError(*(*i));
 									}
 									catch(...)

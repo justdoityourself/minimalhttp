@@ -4,6 +4,8 @@
 
 #include "async.hpp"
 
+#include "d8u/util.hpp"
+
 namespace mhttp
 {
 	template < typename C = sock_t >class TcpConnections
@@ -34,6 +36,7 @@ namespace mhttp
 							{
 								try
 								{
+									d8u::trace("Lost Connection:", (*i).uid);
 									OnDisconnect(*i);
 								}
 								catch(...)
