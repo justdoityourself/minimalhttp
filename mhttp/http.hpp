@@ -85,6 +85,11 @@ namespace mhttp
 			ActivateWrite(queue, FormatHttpResponse("400 Bad Request", gsl::span<uint8_t>(), headers...));
 		}
 
+		template < typename ... t_args > void Http403A(void* queue, t_args...headers)
+		{
+			ActivateWrite(queue, FormatHttpResponse("403 Forbidden", gsl::span<uint8_t>(), headers...));
+		}
+
 		template < typename ... t_args > void Http404A(void* queue, t_args...headers)
 		{
 			ActivateWrite(queue, FormatHttpResponse("404 Not Found", gsl::span<uint8_t>(), headers...));
