@@ -65,6 +65,8 @@ namespace mhttp
 			connections.emplace_back();
 			connections.back().Init(*c, a, t, uid);
 
+			historic++;
+
 			return connections.back();
 		}
 
@@ -79,7 +81,11 @@ namespace mhttp
 			return &connections.back();
 		}
 
+		size_t HistoricConnections() { return historic; }
+
 	private:
+		std::atomic<size_t> historic = 0;
+
 		std::recursive_mutex lock;
 		std::list<C> connections;
 	};

@@ -137,6 +137,7 @@ namespace mhttp
 		size_t MessageCount() { return messages; }
 		size_t EventsStarted() { return events_started; }
 		size_t EventsFinished() { return events_finished; }
+		size_t OustandingRequests() { return events_started - events_finished;  }
 		size_t ReplyCount() { return replies; }
 
 	private:
