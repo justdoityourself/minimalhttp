@@ -36,7 +36,7 @@ namespace mhttp
 							{
 								try
 								{
-									d8u::trace("Lost Connection:", (*i).uid);
+									//d8u::trace("Lost Connection:", (*i).uid);
 									OnDisconnect(*i);
 								}
 								catch(...)

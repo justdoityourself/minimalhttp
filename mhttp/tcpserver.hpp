@@ -163,7 +163,7 @@ namespace mhttp
 			if (write_buffer)
 				c->WriteBuffer((int)write_buffer);
 
-			d8u::trace("New Connection:", uid);
+			//d8u::trace("New Connection:", uid);
 
 			auto enable = OnAccept(bc);
 			bc.multiplex = multiplex;
