@@ -9,7 +9,9 @@
 #include <utility>
 #include <map>
 #include <string_view>
+#include <string>
 #include <memory>
+#include <sstream>
 
 #include "../gsl-lite.hpp"
 #include "d8u/buffer.hpp"

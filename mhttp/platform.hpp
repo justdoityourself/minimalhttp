@@ -141,6 +141,7 @@ typedef struct {
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include <errno.h>
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
 #define SD_BOTH 2
