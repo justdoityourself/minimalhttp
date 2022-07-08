@@ -185,6 +185,16 @@ namespace mhttp
 			int status = 0;
 
 			std::map<std::string_view, std::string_view> headers;
+
+			auto Header(std::string_view k)
+			{
+				auto header = headers.find(k);
+				
+				if (header != headers.end())
+					return header->second;
+
+				return std::string_view("");
+			}
 		};
 
 		static Response ParseResponse(d8u::sse_vector && _m, gsl::span<uint8_t> body)
